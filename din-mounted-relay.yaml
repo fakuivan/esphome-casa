@@ -19,6 +19,7 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret din_mounted_relay_params
       ap_ssid: Din-Mounted-Relay
+  more_debug_lt: !include includes/more_debug_libretiny.yaml
 
 bk72xx:
   board: generic-bk7231t-qfn32-tuya
@@ -26,39 +27,6 @@ bk72xx:
 captive_portal:
 
 web_server:
-
-sensor:
-- platform: debug
-  free:
-    name: "Heap Free"
-    entity_category: diagnostic
-  block:
-    name: "Heap Max Block"
-    entity_category: diagnostic
-  loop_time:
-    name: "Loop Time"
-    entity_category: diagnostic
-
-text_sensor:
-- platform: libretiny
-  version:
-    name: LibreTiny Version
-    entity_category: diagnostic
-- platform: debug
-  device:
-    name: "Device Info"
-    entity_category: diagnostic
-  reset_reason:
-    name: "Reset Reason"
-    entity_category: diagnostic
-
-debug:
-  update_interval: 5s
-
-button:
-- platform: restart
-  name: Restart
-  entity_category: diagnostic
 
 status_led:
   pin:

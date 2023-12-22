@@ -7,3 +7,8 @@ sensor:
 - platform: uptime
   name: Uptime
   entity_category: diagnostic
+
+button:
+- platform: restart
+  name: Restart
+  entity_category: diagnostic

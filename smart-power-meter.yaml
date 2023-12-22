@@ -12,6 +12,7 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret smart_power_meter_params
       ap_ssid: Smart-Power-Meter
+  more_debug_lt: !include includes/more_debug_libretiny.yaml
 
 # Captive portal for when wifi network is not available
 captive_portal:
@@ -236,9 +237,6 @@ button:
     then:
       lambda: |-
         id(tuya_mcu).set_boolean_datapoint_value($dp_clear, true);
-- platform: restart
-  name: Restart
-  entity_category: diagnostic
 
 sensor:
   - platform: "tuya"
@@ -304,29 +302,6 @@ sensor:
     device_class: current
     unit_of_measurement: A
     accuracy_decimals: 2
-
-  - platform: debug
-    free:
-      name: "Heap Free"
-      entity_category: diagnostic
-    block:
-      name: "Heap Max Block"
-      entity_category: diagnostic
-    loop_time:
-      name: "Loop Time"
-      entity_category: diagnostic
-
-text_sensor:
-- platform: debug
-  device:
-    name: "Device Info"
-    entity_category: diagnostic
-  reset_reason:
-    name: "Reset Reason"
-    entity_category: diagnostic
-
-debug:
-  update_interval: 5s
 
 number:
 - platform: template

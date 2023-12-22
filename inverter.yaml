@@ -14,11 +14,6 @@ packages:
 esp8266:
   board: d1_mini
 
-button:
-- platform: restart
-  name: Restart
-  entity_category: diagnostic
-
 sensor:
 - platform: pipsolar
   pipsolar_id: inverter0

@@ -1,0 +1,28 @@
+sensor:
+- platform: debug
+  free:
+    name: "Heap Free"
+    entity_category: diagnostic
+  block:
+    name: "Heap Max Block"
+    entity_category: diagnostic
+  loop_time:
+    name: "Loop Time"
+    entity_category: diagnostic
+
+text_sensor:
+- platform: libretiny
+  version:
+    name: LibreTiny Version
+    entity_category: diagnostic
+
+- platform: debug
+  device:
+    name: "Device Info"
+    entity_category: diagnostic
+  reset_reason:
+    name: "Reset Reason"
+    entity_category: diagnostic
+
+debug:
+  update_interval: 5s
