@@ -1,10 +1,10 @@
 esphome:
   on_boot:
     # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-    priority: 600
+  - priority: 600
     then:
       if:
-        condition: 
+        condition:
           switch.is_on: relay
         then:
           light.turn_on: light_status
@@ -32,7 +32,7 @@ time:
   timezone: "GMT+3"
   on_time:
   - then:
-    - if:
+      if:
         condition:
         - switch.is_on: restart_at_midnight
         - switch.is_on: relay
@@ -61,7 +61,7 @@ sensor:
     name: Current
     filters:
     # Calibrated from 1
-    - multiply: 0.424471
+      multiply: 0.424471
   voltage:
     name: Voltage
   power:
@@ -83,8 +83,7 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    then:
-    - switch.toggle: relay
+    switch.toggle: relay
 
 switch:
 - platform: gpio
@@ -93,9 +92,9 @@ switch:
   pin: P8
   restore_mode: RESTORE_DEFAULT_OFF
   on_turn_on:
-  - light.turn_on: light_status
+    light.turn_on: light_status
   on_turn_off:
-  - light.turn_off: light_status
+    light.turn_off: light_status
 
 - platform: template
   name: Restart at midnight

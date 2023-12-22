@@ -22,14 +22,12 @@ binary_sensor:
     number: P24
     inverted: true
     mode: INPUT_PULLUP
-  on_press: 
-    then:
-    - switch.turn_on: switch_1
-  on_release: 
-    then:
-    - switch.turn_off: switch_1
+  on_press:
+    switch.turn_on: switch_1
+  on_release:
+    switch.turn_off: switch_1
   filters:
-  - delayed_on_off: 20ms
+    delayed_on_off: 20ms
 - platform: gpio
   id: binary_onoff_2
   name: Switch 2
@@ -37,14 +35,12 @@ binary_sensor:
     number: P26
     inverted: true
     mode: INPUT_PULLUP
-  # on_press: 
-  #   then:
-  #   - switch.turn_on: switch_2
-  # on_release: 
-  #   then:
-  #   - switch.turn_off: switch_2
+  # on_press:
+  #   switch.turn_on: switch_2
+  # on_release:
+  #   switch.turn_off: switch_2
   filters:
-  - delayed_on_off: 20ms
+    delayed_on_off: 20ms
 - platform: gpio
   id: binary_switch_all
   pin:
@@ -52,19 +48,20 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    then:
-    - switch.toggle: switch_1
-    - switch.toggle: switch_2
+  - switch.toggle: switch_1
+  - switch.toggle: switch_2
 
 switch:
 - platform: gpio
   id: switch_1
   name: Relay 1
   pin: P8
+  restore_mode: RESTORE_DEFAULT_OFF
 - platform: gpio
   id: switch_2
   name: Relay 2
   pin: P7
+  restore_mode: RESTORE_DEFAULT_OFF
 
 status_led:
   pin:

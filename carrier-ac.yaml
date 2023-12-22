@@ -69,7 +69,6 @@ climate:
           id(setting_up_load_shedding) = false;
         }
       }
-      
 
 binary_sensor:
 - platform: template
@@ -84,7 +83,7 @@ binary_sensor:
 script:
 - id: energy_saving_overwrite
   then:
-  - lambda: |-
+    lambda: |-
       id(energy_saving_overwritten).publish_state(
         id(energy_saving).state && !id(setting_up_energy_saving));
       id(setting_up_energy_saving) = false;
@@ -95,12 +94,12 @@ script:
       condition:
         lambda: return id(carrier_ac).mode != CLIMATE_MODE_OFF && id(load_shed).state;
       then:
-        - globals.set: 
-            id: setting_up_load_shedding
-            value: !lambda return true;
-        - midea_ac.power_off:
-            id: carrier_ac
-        - delay: 1s
+      - globals.set:
+          id: setting_up_load_shedding
+          value: !lambda return true;
+      - midea_ac.power_off:
+          id: carrier_ac
+      - delay: 1s
 
 switch:
 - platform: template
@@ -114,13 +113,13 @@ switch:
   name: Load shed
   optimistic: True
   turn_on_action:
-  - lambda: |-
+    lambda: |-
       if (id(carrier_ac).mode == CLIMATE_MODE_OFF)
         return;
       id(setting_up_load_shedding) = true;
       id(carrier_ac).do_power_off();
   turn_off_action:
-  - lambda: |-
+    lambda: |-
       id(setting_up_load_shedding) = true;
       id(requested_shedding_stop).publish_state(false);
       if (id(turn_on_after_shedding).state && id(carrier_ac).mode == CLIMATE_MODE_OFF) {
@@ -134,7 +133,7 @@ switch:
   name: Energy saving
   optimistic: True
   turn_off_action:
-  - lambda: |-
+    lambda: |-
       if (!id(energy_saving_overwritten).state) {
         id(setting_up_energy_saving) = true;
         id(carrier_ac).do_power_on();
@@ -142,7 +141,7 @@ switch:
       id(energy_saving_overwritten).publish_state(false);
 
   turn_on_action:
-  - lambda: |-
+    lambda: |-
       if (id(carrier_ac).mode == CLIMATE_MODE_OFF) {
         id(energy_saving_overwritten).publish_state(true);
       } else {

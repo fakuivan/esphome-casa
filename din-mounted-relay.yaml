@@ -1,13 +1,13 @@
 esphome:
   on_boot:
     # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-    priority: 600
+  - priority: 600
     then:
       if:
-        condition: 
-          - switch.is_on: relay_inner
+        condition:
+          switch.is_on: relay_inner
         then:
-          - switch.turn_on: relay
+          switch.turn_on: relay
   name: din-mounted-relay
   friendly_name: din_mounted_relay
 
@@ -41,8 +41,7 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    then:
-      - switch.toggle: relay
+    switch.toggle: relay
 
 - platform: template
   id: energy_saving_overwritten
@@ -61,10 +60,10 @@ globals:
 script:
 - id: energy_saving_overwrite
   then:
-    - lambda: |-
-        id(energy_saving_overwritten).publish_state(
-          id(energy_saving).state && !id(setting_up_energy_saving));
-        id(setting_up_energy_saving) = false;
+    lambda: |-
+      id(energy_saving_overwritten).publish_state(
+        id(energy_saving).state && !id(setting_up_energy_saving));
+      id(setting_up_energy_saving) = false;
 
 switch:
 - platform: gpio
@@ -73,19 +72,17 @@ switch:
   pin: P14
   restore_mode: RESTORE_DEFAULT_OFF
   on_turn_off:
-    then:
-      - script.execute: energy_saving_overwrite
-      - script.wait: energy_saving_overwrite
+  - script.execute: energy_saving_overwrite
+  - script.wait: energy_saving_overwrite
   on_turn_on:
-    then:
-      - script.execute: energy_saving_overwrite
-      - script.wait: energy_saving_overwrite
+  - script.execute: energy_saving_overwrite
+  - script.wait: energy_saving_overwrite
 
 - platform: template
   id: relay
   name: Relay
   turn_on_action:
-  - lambda: |-
+    lambda: |-
       if (!id(load_shed).state || (id(setting_up_load_shedding) && id(turn_on_after_shedding).state)) {
         id(relay_inner).turn_on();
         id(turn_on_after_shedding).turn_on();
@@ -95,7 +92,7 @@ switch:
         id(relay).publish_state(false);
       }
   turn_off_action:
-  - lambda: |-
+    lambda: |-
       id(relay_inner).turn_off();
       if (!id(setting_up_load_shedding)) {
         id(turn_on_after_shedding).turn_off();
@@ -107,12 +104,12 @@ switch:
   name: Load shed
   optimistic: True
   turn_on_action:
-  - lambda: |-
+    lambda: |-
       id(setting_up_load_shedding) = true;
       id(relay).turn_off();
       id(setting_up_load_shedding) = false;
   turn_off_action:
-  - lambda: |-
+    lambda: |-
       id(setting_up_load_shedding) = true;
       id(relay).turn_on();
       id(setting_up_load_shedding) = false;
@@ -128,20 +125,18 @@ switch:
   name: Energy saving
   optimistic: True
   turn_off_action:
-    then:
-    - lambda: |-
-        if (!id(energy_saving_overwritten).state) {
-          id(setting_up_energy_saving) = true;
-          id(relay).turn_on();
-        }
-        id(energy_saving_overwritten).publish_state(false);
-            
-  turn_on_action: 
-    then:
-    - lambda: |-
-        if (id(relay).state == false /* if relay is off */) {
-          id(energy_saving_overwritten).publish_state(true);
-        } else {
-          id(setting_up_energy_saving) = true;
-          id(relay).turn_off();
-        }
+    lambda: |-
+      if (!id(energy_saving_overwritten).state) {
+        id(setting_up_energy_saving) = true;
+        id(relay).turn_on();
+      }
+      id(energy_saving_overwritten).publish_state(false);
+
+  turn_on_action:
+    lambda: |-
+      if (id(relay).state == false /* if relay is off */) {
+        id(energy_saving_overwritten).publish_state(true);
+      } else {
+        id(setting_up_energy_saving) = true;
+        id(relay).turn_off();
+      }

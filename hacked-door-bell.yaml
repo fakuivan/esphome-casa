@@ -31,11 +31,11 @@ logger:
 #script:
 #- id: doorbell_ring
 #  then:
-#    - lambda: |-
-#        const auto now = id(ha_time).now();
-#        if (now.is_valid()) {
-#          id(last_rung).publish_state(now.timestamp);
-#        }
+#    lambda: |-
+#      const auto now = id(ha_time).now();
+#      if (now.is_valid()) {
+#        id(last_rung).publish_state(now.timestamp);
+#      }
 
 binary_sensor:
 - platform: gpio
@@ -45,8 +45,7 @@ binary_sensor:
     inverted: true
     mode: INPUT
   #on_press:
-  #  then:
-  #    - script.execute: doorbell_ring
+  #  script.execute: doorbell_ring
 - platform: gpio
   name: Doorbell 2
   pin:
@@ -54,5 +53,4 @@ binary_sensor:
     inverted: true
     mode: INPUT
   #on_press:
-  #  then:
-  #    - script.execute: doorbell_ring
+  #  script.execute: doorbell_ring

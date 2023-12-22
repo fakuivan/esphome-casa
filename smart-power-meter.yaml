@@ -51,7 +51,7 @@ tuya:
   - sensor_datapoint: 6
     datapoint_type: raw
     then:
-    - lambda: |-
+      lambda: |-
         const float voltage = (x[0] << 8 | x[1]) * 0.1;
         const float curr = (x[2] << 16 | x[3] << 8 | x[4]) * 0.001;
         const float active_power = (x[5] << 16 | x[6] << 8 | x[7]);
@@ -64,18 +64,18 @@ tuya:
   - sensor_datapoint: $dp_clear
     datapoint_type: bool
     then:
-    - lambda: |-
+      lambda: |-
         if (x) id(tuya_mcu).set_boolean_datapoint_value($dp_clear, false);
   - sensor_datapoint: 17
     datapoint_type: raw
     then:
-    - lambda: |-
+      lambda: |-
         id(config_dp17) = x;
         power_meter::update_values($id_maps_dp_17, x);
   - sensor_datapoint: 18
     datapoint_type: raw
     then:
-    - lambda: |-
+      lambda: |-
         id(config_dp18) = x;
         power_meter::update_values($id_maps_dp_18, x);
 
@@ -169,7 +169,7 @@ switch:
   name: Trip on overcurrent
   id: overcurrent_trip
   entity_category: config
-  turn_off_action: 
+  turn_off_action:
     then:
       script.execute:
         id: set_trip_dp18
@@ -185,7 +185,7 @@ switch:
   name: Trip on overvoltage
   id: overvoltage_trip
   entity_category: config
-  turn_off_action: 
+  turn_off_action:
     then:
       script.execute:
         id: set_trip_dp18
@@ -201,7 +201,7 @@ switch:
   name: Trip on undervoltage
   id: undervoltage_trip
   entity_category: config
-  turn_off_action: 
+  turn_off_action:
     then:
       script.execute:
         id: set_trip_dp18
@@ -217,7 +217,7 @@ switch:
   name: Trip on leakage current
   id: leakage_trip
   entity_category: config
-  turn_off_action: 
+  turn_off_action:
     then:
       script.execute:
         id: set_trip_dp17
@@ -239,69 +239,69 @@ button:
         id(tuya_mcu).set_boolean_datapoint_value($dp_clear, true);
 
 sensor:
-  - platform: "tuya"
-    name: "Total power consumption"
-    sensor_datapoint: 1
-    state_class: total_increasing
-    device_class: energy
-    unit_of_measurement: kWh
-    accuracy_decimals: 1
-    filters:
-    - multiply: 0.01
+- platform: "tuya"
+  name: "Total power consumption"
+  sensor_datapoint: 1
+  state_class: total_increasing
+  device_class: energy
+  unit_of_measurement: kWh
+  accuracy_decimals: 1
+  filters:
+    multiply: 0.01
 
-  - platform: "tuya"
-    name: "Remaining quota"
-    sensor_datapoint: 13
-    state_class: measurement
-    device_class: energy
-    unit_of_measurement: kWh
+- platform: "tuya"
+  name: "Remaining quota"
+  sensor_datapoint: 13
+  state_class: measurement
+  device_class: energy
+  unit_of_measurement: kWh
 
-  - platform: "tuya"
-    name: "Leakage current"
-    sensor_datapoint: 15
-    state_class: measurement
-    device_class: current
-    unit_of_measurement: mA
-    accuracy_decimals: 0
+- platform: "tuya"
+  name: "Leakage current"
+  sensor_datapoint: 15
+  state_class: measurement
+  device_class: current
+  unit_of_measurement: mA
+  accuracy_decimals: 0
 
-  - name: "Input Voltage"
-    platform: template
-    id: vin_rms
-    state_class: measurement
-    device_class: voltage
-    unit_of_measurement: V
-    accuracy_decimals: 0
+- name: "Input Voltage"
+  platform: template
+  id: vin_rms
+  state_class: measurement
+  device_class: voltage
+  unit_of_measurement: V
+  accuracy_decimals: 0
 
-  - name: "Active power"
-    platform: template
-    id: power
-    state_class: measurement
-    device_class: power
-    unit_of_measurement: W
-    accuracy_decimals: 0
+- name: "Active power"
+  platform: template
+  id: power
+  state_class: measurement
+  device_class: power
+  unit_of_measurement: W
+  accuracy_decimals: 0
 
-  - name: "Apparent power"
-    platform: template
-    id: apparent_power
-    state_class: measurement
-    device_class: apparent_power
-    unit_of_measurement: VA
-    accuracy_decimals: 2
+- name: "Apparent power"
+  platform: template
+  id: apparent_power
+  state_class: measurement
+  device_class: apparent_power
+  unit_of_measurement: VA
+  accuracy_decimals: 2
 
-  - name: "Power factor"
-    platform: template
-    id: power_factor
-    state_class: measurement
-    device_class: power_factor
-    accuracy_decimals: 2
+- name: "Power factor"
+  platform: template
+  id: power_factor
+  state_class: measurement
+  device_class: power_factor
+  accuracy_decimals: 2
 
-  - platform: "template"
-    name: "Output current"
-    id: current
-    state_class: measurement
-    device_class: current
-    unit_of_measurement: A
-    accuracy_decimals: 2
+- platform: "template"
+  name: "Output current"
+  id: current
+  state_class: measurement
+  device_class: current
+  unit_of_measurement: A
+  accuracy_decimals: 2
 
 number:
 - platform: template
@@ -314,16 +314,15 @@ number:
   device_class: energy
   unit_of_measurement: kWh
   set_action:
-    then:
-      - if:
-          condition:
-            lambda: return x != 0;
-          then:
-          - lambda: |-
-              id(tuya_mcu).set_integer_datapoint_value(14, x);
-          - number.set:
-              id: add_quota
-              value: 0
+    if:
+      condition:
+        lambda: return x != 0;
+      then:
+      - lambda: |-
+          id(tuya_mcu).set_integer_datapoint_value(14, x);
+      - number.set:
+          id: add_quota
+          value: 0
 - platform: tuya
   number_datapoint: 105
   name: Reconnection time

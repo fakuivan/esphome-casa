@@ -1,13 +1,13 @@
 esphome:
   on_boot:
     # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-    priority: 600
+  - priority: 600
     then:
       if:
         condition:
-          - switch.is_on: relay
+          switch.is_on: relay
         then:
-          - light.turn_on: light_status
+          light.turn_on: light_status
   name: desmaled-smart-relay-2
   friendly_name: desmaled_smart_relay_2
 
@@ -32,8 +32,7 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    then:
-    - switch.toggle: relay
+    switch.toggle: relay
 
 switch:
 - platform: gpio
@@ -42,9 +41,9 @@ switch:
   pin: GPIO3
   restore_mode: RESTORE_DEFAULT_ON
   on_turn_on:
-  - light.turn_on: light_status
+    light.turn_on: light_status
   on_turn_off:
-  - light.turn_off: light_status
+    light.turn_off: light_status
 
 light:
 - platform: status_led

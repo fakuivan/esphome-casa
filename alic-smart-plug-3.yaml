@@ -1,13 +1,13 @@
 esphome:
   on_boot:
     # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-    priority: 600
+  - priority: 600
     then:
       if:
-        condition: 
-          - switch.is_on: relay
+        condition:
+          switch.is_on: relay
         then:
-          - light.turn_on: light_status
+          light.turn_on: light_status
   name: alic-smart-plug-3
   friendly_name: alic_smart_plug_3
 
@@ -39,7 +39,7 @@ sensor:
     name: Current
     filters:
     # Calibrated from 1
-    - multiply: 0.42996
+      multiply: 0.42996
   voltage:
     name: Voltage
   power:
@@ -71,9 +71,9 @@ switch:
   pin: P8
   restore_mode: RESTORE_DEFAULT_OFF
   on_turn_on:
-    - light.turn_on: light_status
+    light.turn_on: light_status
   on_turn_off:
-    - light.turn_off: light_status
+    light.turn_off: light_status
 
 light:
 - platform: status_led

@@ -62,7 +62,7 @@ sensor:
   battery_discharge_current:
     name: Battery discharging current
     state_class: measurement
-    on_value: 
+    on_value:
       then:
         sensor.template.publish:
           id: batt_discharge_power
@@ -145,28 +145,25 @@ switch:
     id: mode_usb
     name: USB
     on_turn_on:
-      then:
-      - select.set:
-          id: output_mode
-          option: USB
+      select.set:
+        id: output_mode
+        option: USB
     entity_category: diagnostic
   output_source_priority_solar:
     id: mode_sub
     name: SUB
     on_turn_on:
-      then:
-      - select.set:
-          id: output_mode
-          option: SUB
+      select.set:
+        id: output_mode
+        option: SUB
     entity_category: diagnostic
   output_source_priority_battery:
     id: mode_sbu
     name: SBU
     on_turn_on:
-      then:
-      - select.set:
-          id: output_mode
-          option: SBU
+      select.set:
+        id: output_mode
+        option: SBU
     entity_category: diagnostic
 
 select:
@@ -181,19 +178,18 @@ select:
   - SBU
   icon: mdi:state-machine
   set_action:
-    then:
-    - lambda: |-
-        std::string mode = x;
-        if (mode == "SBU")
-          id(mode_sbu).turn_on();
-        else if (mode == "SUB")
-          id(mode_sub).turn_on();
-        else if (mode == "USB")
-          id(mode_usb).turn_on();
-        else {
-          ESP_LOGD("set_select_mode", "Unrecognized select option %s", mode.c_str());
-          return;
-        }
+    lambda: |-
+      std::string mode = x;
+      if (mode == "SBU")
+        id(mode_sbu).turn_on();
+      else if (mode == "SUB")
+        id(mode_sub).turn_on();
+      else if (mode == "USB")
+        id(mode_usb).turn_on();
+      else {
+        ESP_LOGD("set_select_mode", "Unrecognized select option %s", mode.c_str());
+        return;
+      }
   entity_category: config
 
 

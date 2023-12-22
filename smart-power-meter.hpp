@@ -54,7 +54,7 @@ template<typename Container>
 void update_values(
     const std::unordered_map<uint8_t, std::tuple<esphome::template_::TemplateSwitch*, esphome::template_::TemplateNumber*>> &map,
     const Container &configs
-) {  
+) {
     const auto data = configs.data();
     const auto size = configs.size();
     for (size_t i = 0; i<size/4; i++) {

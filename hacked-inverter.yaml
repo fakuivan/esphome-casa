@@ -46,7 +46,7 @@ sensor:
   battery_charging_current:
     name: Battery charging current
     state_class: measurement
-    on_value: 
+    on_value:
       then:
         sensor.template.publish:
           id: batt_charge_power
@@ -54,7 +54,7 @@ sensor:
   battery_discharge_current:
     name: Battery discharging current
     state_class: measurement
-    on_value: 
+    on_value:
       then:
         sensor.template.publish:
           id: batt_discharge_power
