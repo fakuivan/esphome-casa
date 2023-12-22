@@ -1,15 +1,10 @@
 esphome:
-  on_boot:
-    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-  - priority: 600
-    then:
-      if:
-        condition:
-          switch.is_on: relay_inner
-        then:
-          switch.turn_on: relay
   name: din-mounted-relay
   friendly_name: din_mounted_relay
+
+substitutions:
+  id_relay_inner: relay_inner
+  id_relay: relay
 
 packages:
   basic: !include
@@ -20,6 +15,13 @@ packages:
       <<: !secret din_mounted_relay_params
       ap_ssid: Din-Mounted-Relay
   more_debug_lt: !include includes/more_debug_libretiny.yaml
+  energy_management: !include
+    file: includes/logic/energy_saving_and_load_shedding.yaml
+    vars:
+      id_energy_saving_overwritten: energy_saving_overwritten
+      id_load_shed: load_shed
+      id_turn_on_after_shedding: turn_on_after_load_shedding
+      id_energy_saving: energy_saving
 
 bk72xx:
   board: generic-bk7231t-qfn32-tuya
@@ -41,102 +43,11 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    switch.toggle: relay
-
-- platform: template
-  id: energy_saving_overwritten
-  name: Energy saving overwritten
-
-globals:
-- id: setting_up_energy_saving
-  type: bool
-  restore_value: no
-  initial_value: "false"
-- id: setting_up_load_shedding
-  type: bool
-  restore_value: no
-  initial_value: "false"
-
-script:
-- id: energy_saving_overwrite
-  then:
-    lambda: |-
-      id(energy_saving_overwritten).publish_state(
-        id(energy_saving).state && !id(setting_up_energy_saving));
-      id(setting_up_energy_saving) = false;
+    switch.toggle: $id_relay
 
 switch:
 - platform: gpio
-  id: relay_inner
+  id: $id_relay_inner
   internal: True
   pin: P14
   restore_mode: RESTORE_DEFAULT_OFF
-  on_turn_off:
-  - script.execute: energy_saving_overwrite
-  - script.wait: energy_saving_overwrite
-  on_turn_on:
-  - script.execute: energy_saving_overwrite
-  - script.wait: energy_saving_overwrite
-
-- platform: template
-  id: relay
-  name: Relay
-  turn_on_action:
-    lambda: |-
-      if (!id(load_shed).state || (id(setting_up_load_shedding) && id(turn_on_after_shedding).state)) {
-        id(relay_inner).turn_on();
-        id(turn_on_after_shedding).turn_on();
-        id(relay).publish_state(true);
-      } else {
-        id(relay_inner).turn_off();
-        id(relay).publish_state(false);
-      }
-  turn_off_action:
-    lambda: |-
-      id(relay_inner).turn_off();
-      if (!id(setting_up_load_shedding)) {
-        id(turn_on_after_shedding).turn_off();
-      }
-      id(relay).publish_state(false);
-
-- platform: template
-  id: load_shed
-  name: Load shed
-  optimistic: True
-  turn_on_action:
-    lambda: |-
-      id(setting_up_load_shedding) = true;
-      id(relay).turn_off();
-      id(setting_up_load_shedding) = false;
-  turn_off_action:
-    lambda: |-
-      id(setting_up_load_shedding) = true;
-      id(relay).turn_on();
-      id(setting_up_load_shedding) = false;
-
-- platform: template
-  id: turn_on_after_shedding
-  name: Turn back on after shedding
-  optimistic: True
-  restore_mode: RESTORE_DEFAULT_OFF
-
-- platform: template
-  id: energy_saving
-  name: Energy saving
-  optimistic: True
-  turn_off_action:
-    lambda: |-
-      if (!id(energy_saving_overwritten).state) {
-        id(setting_up_energy_saving) = true;
-        id(relay).turn_on();
-      }
-      id(energy_saving_overwritten).publish_state(false);
-
-  turn_on_action:
-    lambda: |-
-      if (id(relay).state == false /* if relay is off */) {
-        id(energy_saving_overwritten).publish_state(true);
-      } else {
-        id(setting_up_energy_saving) = true;
-        id(relay).turn_off();
-      }

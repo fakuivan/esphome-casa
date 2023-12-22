@@ -1,0 +1,101 @@
+esphome:
+  on_boot:
+    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
+  - priority: 600
+    then:
+      if:
+        condition:
+          switch.is_on: $id_relay_inner
+        then:
+          switch.turn_on: $id_relay
+
+binary_sensor:
+- platform: template
+  id: $id_energy_saving_overwritten
+  name: Energy saving overwritten
+
+switch:
+- platform: template
+  id: $id_relay
+  name: Relay
+  turn_on_action:
+    lambda: |-
+      if (!id($id_load_shed).state || (id(setting_up_load_shedding) && id($id_turn_on_after_shedding).state)) {
+        id(turn_inner_relay)->execute(true);
+        id($id_turn_on_after_shedding).turn_on();
+        id($id_relay).publish_state(true);
+      } else {
+        id(turn_inner_relay)->execute(false);
+        id($id_relay).publish_state(false);
+      }
+  turn_off_action:
+    lambda: |-
+      id(turn_inner_relay)->execute(false);
+      if (!id(setting_up_load_shedding)) {
+        id($id_turn_on_after_shedding).turn_off();
+      }
+      id($id_relay).publish_state(false);
+
+- platform: template
+  id: $id_load_shed
+  name: Load shed
+  optimistic: True
+  turn_on_action:
+    lambda: |-
+      id(setting_up_load_shedding) = true;
+      id($id_relay).turn_off();
+      id(setting_up_load_shedding) = false;
+  turn_off_action:
+    lambda: |-
+      id(setting_up_load_shedding) = true;
+      id($id_relay).turn_on();
+      id(setting_up_load_shedding) = false;
+
+- platform: template
+  id: $id_turn_on_after_shedding
+  name: Turn back on after shedding
+  optimistic: True
+  restore_mode: RESTORE_DEFAULT_OFF
+
+- platform: template
+  id: $id_energy_saving
+  name: Energy saving
+  optimistic: True
+  turn_off_action:
+    lambda: |-
+      if (!id(energy_saving_overwritten).state) {
+        id(setting_up_energy_saving) = true;
+        id($id_relay).turn_on();
+      }
+      id(energy_saving_overwritten).publish_state(false);
+
+  turn_on_action:
+    lambda: |-
+      if (id($id_relay).state == false /* if relay is off */) {
+        id(energy_saving_overwritten).publish_state(true);
+      } else {
+        id(setting_up_energy_saving) = true;
+        id($id_relay).turn_off();
+      }
+
+globals:
+- id: setting_up_energy_saving
+  type: bool
+  restore_value: no
+  initial_value: "false"
+- id: setting_up_load_shedding
+  type: bool
+  restore_value: no
+  initial_value: "false"
+
+script:
+- id: turn_inner_relay
+  parameters:
+    is_on: bool
+    automatic: bool
+  then:
+    lambda: |-
+      is_on ? id($id_relay_inner).turn_on() : id($id_relay_inner).turn_off();
+      id(energy_saving_overwritten).publish_state(
+        id($id_energy_saving).state && !id(setting_up_energy_saving));
+      id(setting_up_energy_saving) = false;
