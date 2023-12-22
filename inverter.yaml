@@ -1,0 +1,218 @@
+esphome:
+  name: inverter
+  friendly_name: inverter
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret inverter_params
+      ap_ssid: Inverter
+
+esp8266:
+  board: d1_mini
+
+button:
+- platform: restart
+  name: Restart
+  entity_category: diagnostic
+
+sensor:
+- platform: pipsolar
+  pipsolar_id: inverter0
+  ac_output_apparent_power:
+    name: Output apparent power
+    state_class: measurement
+    icon: mdi:lightbulb-on-outline
+  ac_output_active_power:
+    name: Output active power
+    state_class: measurement
+    id: output_active_power
+    icon: mdi:lightbulb-on-outline
+  output_load_percent:
+    name: Output load percent
+    state_class: measurement
+    icon: mdi:progress-download
+  bus_voltage:
+    name: DC bus voltage
+    state_class: measurement
+    icon: mdi:current-dc
+  battery_voltage:
+    id: battery_voltage
+    name: Battery voltage
+    state_class: measurement
+    icon: mdi:current-dc
+  inverter_heat_sink_temperature:
+    name: Heat sink temperature
+    state_class: measurement
+  pv_input_voltage:
+    name: PV input voltage
+    state_class: measurement
+    icon: mdi:current-dc
+  pv_charging_power:
+    name: PV power
+    id: pv_power
+    state_class: measurement
+    icon: mdi:solar-power
+  battery_charging_current:
+    name: Battery charging current
+    state_class: measurement
+    on_value:
+      then:
+        sensor.template.publish:
+          id: batt_charge_power
+          state: !lambda return x*id(battery_voltage).state;
+  battery_discharge_current:
+    name: Battery discharging current
+    state_class: measurement
+    on_value: 
+      then:
+        sensor.template.publish:
+          id: batt_discharge_power
+          state: !lambda return x*id(battery_voltage).state;
+
+- platform: template
+  name: Battery discharging power
+  id: batt_discharge_power
+  state_class: measurement
+  device_class: power
+  unit_of_measurement: W
+  icon: mdi:battery-arrow-down-outline
+
+- platform: template
+  name: Battery charging power
+  id: batt_charge_power
+  state_class: measurement
+  device_class: power
+  unit_of_measurement: W
+  icon: mdi:battery-arrow-up-outline
+  on_value:
+    sensor.template.publish:
+      id: est_grid_power
+      state: !lambda return id(output_active_power).state + x - id(batt_discharge_power).state - id(pv_power).state;
+
+- platform: template
+  name: Estimated grid power
+  id: est_grid_power
+  device_class: power
+  state_class: measurement
+  unit_of_measurement: W
+
+- platform: integration
+  name: Battery charge energy
+  sensor: batt_charge_power
+  time_unit: h
+  state_class: total_increasing
+  device_class: energy
+
+- platform: integration
+  name: Battery discharge energy
+  sensor: batt_discharge_power
+  time_unit: h
+  state_class: total_increasing
+  device_class: energy
+
+- platform: integration
+  name: PV energy
+  sensor: pv_power
+  time_unit: h
+  state_class: total_increasing
+  device_class: energy
+
+binary_sensor:
+- platform: pipsolar
+  pipsolar_id: inverter0
+  faults_present:
+    name: Faults present
+    device_class: problem
+  warnings_present:
+    name: Warnings present
+    device_class: problem
+  warning_line_fail:
+    name: Line failed warning
+    device_class: problem
+  warning_power_loss:
+    name: Power loss warning
+    device_class: problem
+  warning_over_load:
+    name: Overload warning
+    device_class: problem
+  warning_power_limit:
+    name: Power limit warning
+    device_class: problem
+
+switch:
+- platform: pipsolar
+  pipsolar_id: inverter0
+  output_source_priority_utility:
+    id: mode_usb
+    name: USB
+    on_turn_on:
+      then:
+      - select.set:
+          id: output_mode
+          option: USB
+    entity_category: diagnostic
+  output_source_priority_solar:
+    id: mode_sub
+    name: SUB
+    on_turn_on:
+      then:
+      - select.set:
+          id: output_mode
+          option: SUB
+    entity_category: diagnostic
+  output_source_priority_battery:
+    id: mode_sbu
+    name: SBU
+    on_turn_on:
+      then:
+      - select.set:
+          id: output_mode
+          option: SBU
+    entity_category: diagnostic
+
+select:
+- platform: template
+  name: Output Mode
+  id: output_mode
+  restore_value: True
+  optimistic: True
+  options:
+  - USB
+  - SUB
+  - SBU
+  icon: mdi:state-machine
+  set_action:
+    then:
+    - lambda: |-
+        std::string mode = x;
+        if (mode == "SBU")
+          id(mode_sbu).turn_on();
+        else if (mode == "SUB")
+          id(mode_sub).turn_on();
+        else if (mode == "USB")
+          id(mode_usb).turn_on();
+        else {
+          ESP_LOGD("set_select_mode", "Unrecognized select option %s", mode.c_str());
+          return;
+        }
+  entity_category: config
+
+
+# Use dofferent UART since UART0 is being used by the inverter
+logger:
+  # UART1 can only send messages, RX is disabled
+  hardware_uart: UART1
+
+uart:
+- id: uart_bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 2400
+
+pipsolar:
+- uart_id: uart_bus
+  id: inverter0

@@ -1,0 +1,437 @@
+esphome:
+  includes:
+  - smart-power-meter.hpp
+  name: smart-power-meter
+  friendly_name: smart_power_meter
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret smart_power_meter_params
+      ap_ssid: Smart-Power-Meter
+
+# Captive portal for when wifi network is not available
+captive_portal:
+
+bk72xx:
+  board: wb3s
+
+substitutions:
+  dp_clear: "12"
+  id_maps_dp_18: |-
+    {
+      {1, {id(overcurrent_trip), id(max_current)}},
+      {3, {id(overvoltage_trip), id(max_voltage)}},
+      {4, {id(undervoltage_trip), id(min_voltage)}},
+    }
+  id_maps_dp_17: |-
+    {
+      {4, {id(leakage_trip), id(max_leakage_current)}},
+    }
+
+# Enable Tuya MCU
+uart:
+  tx_pin: TX1
+  rx_pin: RX1
+  baud_rate: 9600
+
+globals:
+- id: config_dp17
+  type: std::vector<uint8_t>
+- id: config_dp18
+  type: std::vector<uint8_t>
+
+tuya:
+  id: tuya_mcu
+  on_datapoint_update:
+  - sensor_datapoint: 6
+    datapoint_type: raw
+    then:
+    - lambda: |-
+        const float voltage = (x[0] << 8 | x[1]) * 0.1;
+        const float curr = (x[2] << 16 | x[3] << 8 | x[4]) * 0.001;
+        const float active_power = (x[5] << 16 | x[6] << 8 | x[7]);
+        const float ap_power = voltage*curr;
+        id(vin_rms).publish_state(voltage);
+        id(current).publish_state(curr);
+        id(power).publish_state(active_power);
+        id(apparent_power).publish_state(ap_power);
+        id(power_factor).publish_state(ap_power != 0. ? active_power/ap_power : 0.);
+  - sensor_datapoint: $dp_clear
+    datapoint_type: bool
+    then:
+    - lambda: |-
+        if (x) id(tuya_mcu).set_boolean_datapoint_value($dp_clear, false);
+  - sensor_datapoint: 17
+    datapoint_type: raw
+    then:
+    - lambda: |-
+        id(config_dp17) = x;
+        power_meter::update_values($id_maps_dp_17, x);
+  - sensor_datapoint: 18
+    datapoint_type: raw
+    then:
+    - lambda: |-
+        id(config_dp18) = x;
+        power_meter::update_values($id_maps_dp_18, x);
+
+script:
+- id: set_config_dp
+  mode: queued
+  parameters:
+    enabled: bool
+    threshold: uint16_t
+    field_id: uint8_t
+    dp_18: bool
+    set_threshold: bool
+  then:
+    lambda: |-
+      auto* conf = power_meter::find_config(dp_18 ? id(config_dp18) : id(config_dp17), field_id);
+      if (conf == nullptr) {
+        return;
+      }
+      if (set_threshold) {
+        power_meter::set_threshold(*conf, threshold);
+      } else {
+        power_meter::set_trip(*conf, enabled);
+      }
+      id(tuya_mcu).set_raw_datapoint_value(dp_18 ? 18 : 17, dp_18 ? id(config_dp18) : id(config_dp17));
+- id: set_thr_dp18
+  mode: queued
+  parameters:
+    value: uint16_t
+    field_id: uint8_t
+  then:
+    script.execute:
+      id: set_config_dp
+      field_id: !lambda return field_id;
+      threshold: !lambda return value;
+      dp_18: true
+      enabled: false
+      set_threshold: true
+- id: set_thr_dp17
+  mode: queued
+  parameters:
+    value: uint16_t
+    field_id: uint8_t
+  then:
+    script.execute:
+      id: set_config_dp
+      field_id: !lambda return field_id;
+      threshold: !lambda return value;
+      dp_18: false
+      enabled: false
+      set_threshold: true
+- id: set_trip_dp18
+  mode: queued
+  parameters:
+    enabled: bool
+    field_id: uint8_t
+  then:
+    script.execute:
+      id: set_config_dp
+      field_id: !lambda return field_id;
+      threshold: 0
+      dp_18: true
+      enabled: !lambda return enabled;
+      set_threshold: false
+- id: set_trip_dp17
+  mode: queued
+  parameters:
+    enabled: bool
+    field_id: uint8_t
+  then:
+    script.execute:
+      id: set_config_dp
+      field_id: !lambda return field_id;
+      threshold: 0
+      dp_18: false
+      enabled: !lambda return enabled;
+      set_threshold: false
+
+
+
+switch:
+- platform: "tuya"
+  name: "Output relay"
+  switch_datapoint: 16
+- platform: tuya
+  name: Enable quota
+  switch_datapoint: 11
+  entity_category: config
+
+# Configs from raw datapoints
+- platform: template
+  name: Trip on overcurrent
+  id: overcurrent_trip
+  entity_category: config
+  turn_off_action: 
+    then:
+      script.execute:
+        id: set_trip_dp18
+        field_id: 1
+        enabled: false
+  turn_on_action:
+    then:
+      script.execute:
+        id: set_trip_dp18
+        field_id: 1
+        enabled: true
+- platform: template
+  name: Trip on overvoltage
+  id: overvoltage_trip
+  entity_category: config
+  turn_off_action: 
+    then:
+      script.execute:
+        id: set_trip_dp18
+        field_id: 3
+        enabled: false
+  turn_on_action:
+    then:
+      script.execute:
+        id: set_trip_dp18
+        field_id: 3
+        enabled: true
+- platform: template
+  name: Trip on undervoltage
+  id: undervoltage_trip
+  entity_category: config
+  turn_off_action: 
+    then:
+      script.execute:
+        id: set_trip_dp18
+        field_id: 4
+        enabled: false
+  turn_on_action:
+    then:
+      script.execute:
+        id: set_trip_dp18
+        field_id: 4
+        enabled: true
+- platform: template
+  name: Trip on leakage current
+  id: leakage_trip
+  entity_category: config
+  turn_off_action: 
+    then:
+      script.execute:
+        id: set_trip_dp17
+        field_id: 4
+        enabled: false
+  turn_on_action:
+    then:
+      script.execute:
+        id: set_trip_dp17
+        field_id: 4
+        enabled: true
+
+button:
+- platform: template
+  name: Clear energy usage
+  on_press:
+    then:
+      lambda: |-
+        id(tuya_mcu).set_boolean_datapoint_value($dp_clear, true);
+- platform: restart
+  name: Restart
+  entity_category: diagnostic
+
+sensor:
+  - platform: "tuya"
+    name: "Total power consumption"
+    sensor_datapoint: 1
+    state_class: total_increasing
+    device_class: energy
+    unit_of_measurement: kWh
+    accuracy_decimals: 1
+    filters:
+    - multiply: 0.01
+
+  - platform: "tuya"
+    name: "Remaining quota"
+    sensor_datapoint: 13
+    state_class: measurement
+    device_class: energy
+    unit_of_measurement: kWh
+
+  - platform: "tuya"
+    name: "Leakage current"
+    sensor_datapoint: 15
+    state_class: measurement
+    device_class: current
+    unit_of_measurement: mA
+    accuracy_decimals: 0
+
+  - name: "Input Voltage"
+    platform: template
+    id: vin_rms
+    state_class: measurement
+    device_class: voltage
+    unit_of_measurement: V
+    accuracy_decimals: 0
+
+  - name: "Active power"
+    platform: template
+    id: power
+    state_class: measurement
+    device_class: power
+    unit_of_measurement: W
+    accuracy_decimals: 0
+
+  - name: "Apparent power"
+    platform: template
+    id: apparent_power
+    state_class: measurement
+    device_class: apparent_power
+    unit_of_measurement: VA
+    accuracy_decimals: 2
+
+  - name: "Power factor"
+    platform: template
+    id: power_factor
+    state_class: measurement
+    device_class: power_factor
+    accuracy_decimals: 2
+
+  - platform: "template"
+    name: "Output current"
+    id: current
+    state_class: measurement
+    device_class: current
+    unit_of_measurement: A
+    accuracy_decimals: 2
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+      entity_category: diagnostic
+    block:
+      name: "Heap Max Block"
+      entity_category: diagnostic
+    loop_time:
+      name: "Loop Time"
+      entity_category: diagnostic
+
+text_sensor:
+- platform: debug
+  device:
+    name: "Device Info"
+    entity_category: diagnostic
+  reset_reason:
+    name: "Reset Reason"
+    entity_category: diagnostic
+
+debug:
+  update_interval: 5s
+
+number:
+- platform: template
+  name: Add quota
+  id: add_quota
+  min_value: 0
+  max_value: 99999
+  step: 1
+  mode: box
+  device_class: energy
+  unit_of_measurement: kWh
+  set_action:
+    then:
+      - if:
+          condition:
+            lambda: return x != 0;
+          then:
+          - lambda: |-
+              id(tuya_mcu).set_integer_datapoint_value(14, x);
+          - number.set:
+              id: add_quota
+              value: 0
+- platform: tuya
+  number_datapoint: 105
+  name: Reconnection time
+  min_value: 1
+  max_value: 500
+  step: 1
+  entity_category: config
+  device_class: duration
+  mode: box
+  unit_of_measurement: s
+- platform: tuya
+  number_datapoint: 104
+  name: Trip time
+  min_value: 1
+  max_value: 30
+  step: 1
+  entity_category: config
+  device_class: duration
+  mode: box
+  unit_of_measurement: s
+
+# Configs from raw datapoints
+- platform: template
+  id: max_leakage_current
+  name: Max leakage current
+  max_value: 300  # checked
+  min_value: 10  # checked
+  step: 1
+  entity_category: config
+  device_class: current
+  unit_of_measurement: mA
+  set_action:
+    then:
+      script.execute:
+        id: set_thr_dp17
+        field_id: 4
+        value: !lambda return x;
+  mode: box
+- platform: template
+  id: max_current
+  name: Max current
+  max_value: 63  # checked
+  min_value: 1  # checked
+  step: 1
+  entity_category: config
+  device_class: current
+  unit_of_measurement: A
+  set_action:
+    then:
+      script.execute:
+        id: set_thr_dp18
+        field_id: 1
+        value: !lambda return x;
+  mode: box
+- platform: template
+  id: max_voltage
+  name: Max voltage
+  max_value: 300  # checked
+  min_value: 230  # checked
+  step: 1
+  entity_category: config
+  device_class: voltage
+  unit_of_measurement: V
+  set_action:
+    then:
+      script.execute:
+        id: set_thr_dp18
+        field_id: 3
+        value: !lambda return x;
+  mode: box
+- platform: template
+  id: min_voltage
+  name: Min voltage
+  max_value: 210  # checked
+  min_value: 110  # checked
+  step: 1
+  entity_category: config
+  device_class: voltage
+  unit_of_measurement: V
+  set_action:
+    then:
+      script.execute:
+        id: set_thr_dp18
+        field_id: 4
+        value: !lambda return x;
+  mode: box

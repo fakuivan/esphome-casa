@@ -1,0 +1,72 @@
+esphome:
+  name: macroled-mini-relay-3
+  friendly_name: macroled_mini_relay_3
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret macroled_mini_relay_3_params
+      ap_ssid: Macroled-Mini-Relay-3
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+binary_sensor:
+- platform: gpio
+  id: binary_onoff_1
+  name: Switch 1
+  pin:
+    number: P24
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press: 
+    then:
+    - switch.turn_on: switch_1
+  on_release: 
+    then:
+    - switch.turn_off: switch_1
+  filters:
+  - delayed_on_off: 20ms
+- platform: gpio
+  id: binary_onoff_2
+  name: Switch 2
+  pin:
+    number: P26
+    inverted: true
+    mode: INPUT_PULLUP
+  # on_press: 
+  #   then:
+  #   - switch.turn_on: switch_2
+  # on_release: 
+  #   then:
+  #   - switch.turn_off: switch_2
+  filters:
+  - delayed_on_off: 20ms
+- platform: gpio
+  id: binary_switch_all
+  pin:
+    number: P10
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press:
+    then:
+    - switch.toggle: switch_1
+    - switch.toggle: switch_2
+
+switch:
+- platform: gpio
+  id: switch_1
+  name: Relay 1
+  pin: P8
+- platform: gpio
+  id: switch_2
+  name: Relay 2
+  pin: P7
+
+status_led:
+  pin:
+    number: P6
+    inverted: true

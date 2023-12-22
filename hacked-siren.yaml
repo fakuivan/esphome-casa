@@ -1,0 +1,52 @@
+esphome:
+  name: hacked-siren
+  friendly_name: hacked_siren
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret hacked_siren_params
+      ap_ssid: Hacked-Siren
+
+esp8266:
+  board: esp01_1m
+
+button:
+- platform: restart
+  name: Restart
+  entity_category: diagnostic
+- platform: template
+  name: Beep
+  on_press:
+  - if:
+      condition:
+      - switch.is_off: siren
+      then:
+      - switch.turn_on: siren
+      - delay: 50ms
+      - switch.turn_off: siren
+
+switch:
+- platform: gpio
+  id: siren
+  name: Siren
+  pin: GPIO3
+  inverted: True
+
+status_led:
+  pin: GPIO2
+
+binary_sensor:
+- platform: gpio
+  id: main_button
+  name: Button
+  pin:
+    number: GPIO0
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press: 
+    then:
+    - switch.toggle: siren

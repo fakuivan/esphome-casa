@@ -1,0 +1,161 @@
+esp8266:
+  board: esp01_1m
+
+esphome:
+  name: carrier-ac
+  friendly_name: carrier_ac
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret carrier_ac_params
+      ap_ssid: Carrier-Ac
+
+# Disable logging over UART (required)
+logger:
+  baud_rate: 0
+
+# UART settings for Midea dongle (required)
+uart:
+  tx_pin: 1         # hardware dependant
+  rx_pin: 3         # hardware dependant
+  baud_rate: 9600
+
+# Main settings
+climate:
+- platform: midea
+  id: carrier_ac
+  name: Midea Climate         # Use a unique name.
+  autoconf: true              # Autoconfigure most options.
+  beeper: true                # Beep on commands.
+  supported_modes:            # Optional. All capabilities in this section may be detected by autoconf.
+  - FAN_ONLY
+  - HEAT_COOL
+  - COOL
+  - HEAT
+  - DRY
+  custom_fan_modes:           # Optional
+  - SILENT
+  - TURBO
+  supported_presets:          # Optional. All capabilities in this section may be detected by autoconf.
+  - ECO
+  - BOOST
+  - SLEEP
+  supported_swing_modes:      # Optional
+  - VERTICAL
+  outdoor_temperature:        # Optional. Outdoor temperature sensor (may display incorrect values after long inactivity).
+    name: Temp
+  humidity_setpoint:          # Optional. Indoor humidity sensor (only for devices that support this feature).
+    name: Humidity
+  on_state:
+    lambda: |-
+      if (x.mode == CLIMATE_MODE_OFF) {
+        if (id(setting_up_load_shedding)) {
+          id(setting_up_load_shedding) = false;
+        } else if (!id(load_shed).state) {
+          id(turn_on_after_shedding).turn_off();
+        }
+      } else {
+        id(energy_saving_overwrite).execute();
+        id(turn_on_after_shedding).turn_on();
+        if (id(load_shed).state) {
+          id(requested_shedding_stop).publish_state(true);
+          id(setting_up_load_shedding) = true;
+          id(delayed_turn_off).execute();
+        } else {
+          id(setting_up_load_shedding) = false;
+        }
+      }
+      
+
+binary_sensor:
+- platform: template
+  id: energy_saving_overwritten
+  name: Energy saving overwritten
+  device_class: tamper
+
+- platform: template
+  id: requested_shedding_stop
+  name: Requested to stop shedding
+
+script:
+- id: energy_saving_overwrite
+  then:
+  - lambda: |-
+      id(energy_saving_overwritten).publish_state(
+        id(energy_saving).state && !id(setting_up_energy_saving));
+      id(setting_up_energy_saving) = false;
+- id: delayed_turn_off
+  then:
+  - delay: 1s
+  - while:
+      condition:
+        lambda: return id(carrier_ac).mode != CLIMATE_MODE_OFF && id(load_shed).state;
+      then:
+        - globals.set: 
+            id: setting_up_load_shedding
+            value: !lambda return true;
+        - midea_ac.power_off:
+            id: carrier_ac
+        - delay: 1s
+
+switch:
+- platform: template
+  id: turn_on_after_shedding
+  name: Turn back on after shedding
+  optimistic: True
+  restore_mode: RESTORE_DEFAULT_OFF
+
+- platform: template
+  id: load_shed
+  name: Load shed
+  optimistic: True
+  turn_on_action:
+  - lambda: |-
+      if (id(carrier_ac).mode == CLIMATE_MODE_OFF)
+        return;
+      id(setting_up_load_shedding) = true;
+      id(carrier_ac).do_power_off();
+  turn_off_action:
+  - lambda: |-
+      id(setting_up_load_shedding) = true;
+      id(requested_shedding_stop).publish_state(false);
+      if (id(turn_on_after_shedding).state && id(carrier_ac).mode == CLIMATE_MODE_OFF) {
+        id(carrier_ac).do_power_on();
+      } else {
+        id(setting_up_load_shedding) = false;
+      }
+
+- platform: template
+  id: energy_saving
+  name: Energy saving
+  optimistic: True
+  turn_off_action:
+  - lambda: |-
+      if (!id(energy_saving_overwritten).state) {
+        id(setting_up_energy_saving) = true;
+        id(carrier_ac).do_power_on();
+      }
+      id(energy_saving_overwritten).publish_state(false);
+
+  turn_on_action:
+  - lambda: |-
+      if (id(carrier_ac).mode == CLIMATE_MODE_OFF) {
+        id(energy_saving_overwritten).publish_state(true);
+      } else {
+        id(setting_up_energy_saving) = true;
+        id(carrier_ac).do_power_off();
+      }
+
+globals:
+- id: setting_up_energy_saving
+  type: bool
+  restore_value: no
+  initial_value: "false"
+- id: setting_up_load_shedding
+  type: bool
+  restore_value: no
+  initial_value: "false"

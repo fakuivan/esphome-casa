@@ -1,0 +1,58 @@
+esphome:
+  name: hacked-door-bell
+  friendly_name: hacked_door_bell
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret hacked_door_bell_params
+      ap_ssid: Hacked-Door-Bell
+
+esp8266:
+  board: esp01_1m
+
+# Disable logging
+logger:
+  baud_rate: 0
+
+#time:
+#- platform: homeassistant
+#  id: ha_time
+
+#sensor:
+#- platform: template
+#  id: last_rung
+#  name: Last rung
+#  device_class: timestamp
+
+#script:
+#- id: doorbell_ring
+#  then:
+#    - lambda: |-
+#        const auto now = id(ha_time).now();
+#        if (now.is_valid()) {
+#          id(last_rung).publish_state(now.timestamp);
+#        }
+
+binary_sensor:
+- platform: gpio
+  name: Doorbell 1
+  pin:
+    number: GPIO2
+    inverted: true
+    mode: INPUT
+  #on_press:
+  #  then:
+  #    - script.execute: doorbell_ring
+- platform: gpio
+  name: Doorbell 2
+  pin:
+    number: GPIO3
+    inverted: true
+    mode: INPUT
+  #on_press:
+  #  then:
+  #    - script.execute: doorbell_ring

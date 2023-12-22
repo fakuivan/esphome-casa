@@ -1,0 +1,5 @@
+packages:
+  connectivity: !include basic_connectivity.yaml
+  debug: !include basic_debug.yaml
+
+logger:

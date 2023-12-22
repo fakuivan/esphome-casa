@@ -1,0 +1,54 @@
+esphome:
+  on_boot:
+    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
+    priority: 600
+    then:
+      if:
+        condition:
+          - switch.is_on: relay
+        then:
+          - light.turn_on: light_status
+  name: desmaled-smart-relay-2
+  friendly_name: desmaled_smart_relay_2
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret desmaled_smart_relay_2_params
+      ap_ssid: Desmaled-Smart-Relay-2
+
+esp8266:
+  board: esp01_1m
+
+binary_sensor:
+- platform: gpio
+  id: main_button
+  name: Button
+  pin:
+    number: GPIO0
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press:
+    then:
+    - switch.toggle: relay
+
+switch:
+- platform: gpio
+  id: relay
+  name: Relay
+  pin: GPIO3
+  restore_mode: RESTORE_DEFAULT_ON
+  on_turn_on:
+  - light.turn_on: light_status
+  on_turn_off:
+  - light.turn_off: light_status
+
+light:
+- platform: status_led
+  id: light_status
+  pin:
+    number: GPIO2
+    inverted: true

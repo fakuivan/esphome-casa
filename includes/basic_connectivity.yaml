@@ -1,0 +1,20 @@
+# Enable Home Assistant API
+api:
+  encryption:
+    key: $api_key
+
+ota:
+  password: $ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: $wifi_password
+  manual_ip:
+    static_ip: 192.168.122.${ip_last_octet}
+    subnet: 255.255.255.0
+    gateway: 0.0.0.0
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: $ap_ssid
+    password: $ap_password
