@@ -5,11 +5,15 @@ esphome:
     then:
       if:
         condition:
-          switch.is_on: relay
+          switch.is_on: $id_relay_inner
         then:
           light.turn_on: light_status
   name: alic-smart-plug-3
   friendly_name: alic_smart_plug_3
+
+substitutions:
+  id_relay_inner: relay_inner
+  id_relay: relay
 
 packages:
   basic: !include
@@ -19,6 +23,13 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret alic_smart_plug_3_params
       ap_ssid: Alic-Smart-Plug-3
+  energy_management: !include
+    file: includes/logic/energy_saving_and_load_shedding.yaml
+    vars:
+      id_energy_saving_overwritten: energy_saving_overwritten
+      id_load_shed: load_shed
+      id_turn_on_after_shedding: turn_on_after_load_shedding
+      id_energy_saving: energy_saving
 
 bk72xx:
   board: cb2s
@@ -61,19 +72,7 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    then:
-    - switch.toggle: relay
-
-switch:
-- platform: gpio
-  id: relay
-  name: Relay
-  pin: P8
-  restore_mode: RESTORE_DEFAULT_OFF
-  on_turn_on:
-    light.turn_on: light_status
-  on_turn_off:
-    light.turn_off: light_status
+    switch.toggle: $id_relay
 
 light:
 - platform: status_led
@@ -81,3 +80,14 @@ light:
   pin:
     number: P7
     inverted: true
+
+switch:
+- platform: gpio
+  id: $id_relay_inner
+  internal: True
+  pin: P8
+  restore_mode: RESTORE_DEFAULT_OFF
+  on_turn_on:
+    light.turn_on: light_status
+  on_turn_off:
+    light.turn_off: light_status

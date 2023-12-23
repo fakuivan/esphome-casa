@@ -5,7 +5,7 @@ esphome:
     then:
       if:
         condition:
-          switch.is_on: relay_inner
+          switch.is_on: $id_relay_inner
         then:
           light.turn_on: light_status
   name: alic-smart-plug-2
@@ -84,6 +84,7 @@ light:
 switch:
 - platform: gpio
   id: $id_relay_inner
+  internal: True
   pin: P8
   restore_mode: RESTORE_DEFAULT_OFF
   on_turn_on:
