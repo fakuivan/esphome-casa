@@ -92,7 +92,6 @@ script:
 - id: turn_inner_relay
   parameters:
     is_on: bool
-    automatic: bool
   then:
     lambda: |-
       is_on ? id($id_relay_inner).turn_on() : id($id_relay_inner).turn_off();
