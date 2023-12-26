@@ -9,10 +9,23 @@ esphome:
         then:
           switch.turn_on: $id_relay
 
+substitutions:
+  id_relay_inner: relay_inner
+  id_relay: relay
+  id_energy_saving_overwritten: energy_saving_overwritten
+  id_load_shed: load_shed
+  id_turn_on_after_shedding: turn_on_after_load_shedding
+  id_energy_saving: energy_saving
+  id_requested_shedding_stop: requested_shedding_stop
+
 binary_sensor:
 - platform: template
   id: $id_energy_saving_overwritten
   name: Energy saving overwritten
+
+- platform: template
+  id: $id_requested_shedding_stop
+  name: Requested to stop shedding
 
 switch:
 - platform: template
@@ -21,6 +34,7 @@ switch:
   turn_on_action:
     lambda: |-
       if (!id($id_load_shed).state || (id(setting_up_load_shedding) && id($id_turn_on_after_shedding).state)) {
+        id($id_requested_shedding_stop).publish_state(false);
         id(turn_inner_relay)->execute(true);
         id($id_turn_on_after_shedding).turn_on();
         id($id_relay).publish_state(true);
@@ -28,11 +42,16 @@ switch:
         id(turn_inner_relay)->execute(false);
         id($id_relay).publish_state(false);
       }
+      if (id($id_load_shed).state && !id(setting_up_load_shedding)) {
+        id($id_requested_shedding_stop).publish_state(true);
+      }
   turn_off_action:
     lambda: |-
       id(turn_inner_relay)->execute(false);
       if (!id(setting_up_load_shedding)) {
         id($id_turn_on_after_shedding).turn_off();
+      } else {
+        id($id_requested_shedding_stop).publish_state(false);
       }
       id($id_relay).publish_state(false);
 

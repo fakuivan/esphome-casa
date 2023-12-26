@@ -11,10 +11,6 @@ esphome:
   name: alic-smart-plug-2
   friendly_name: alic_smart_plug_2
 
-substitutions:
-  id_relay_inner: relay_inner
-  id_relay: relay
-
 packages:
   basic: !include
     file: includes/basic.yaml
@@ -25,11 +21,6 @@ packages:
       ap_ssid: Alic-Smart-Plug-2
   energy_management: !include
     file: includes/logic/energy_saving_and_load_shedding.yaml
-    vars:
-      id_energy_saving_overwritten: energy_saving_overwritten
-      id_load_shed: load_shed
-      id_turn_on_after_shedding: turn_on_after_load_shedding
-      id_energy_saving: energy_saving
 
 bk72xx:
   board: cb2s
