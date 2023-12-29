@@ -18,9 +18,10 @@ esp8266:
 logger:
   baud_rate: 0
 
-#time:
-#- platform: homeassistant
-#  id: ha_time
+time:
+- platform: homeassistant
+  id: ha_time
+  timezone: UTC
 
 #sensor:
 #- platform: template
@@ -37,6 +38,9 @@ logger:
 #        id(last_rung).publish_state(now.timestamp);
 #      }
 
+substitutions:
+  get_iso_time: id(ha_time).now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
 binary_sensor:
 - platform: gpio
   name: Doorbell 1
@@ -44,13 +48,27 @@ binary_sensor:
     number: GPIO2
     inverted: true
     mode: INPUT
-  #on_press:
-  #  script.execute: doorbell_ring
+  on_press:
+    text_sensor.template.publish:
+      id: last_rung_1
+      state: !lambda |-
+        return $get_iso_time;
 - platform: gpio
   name: Doorbell 2
   pin:
     number: GPIO3
     inverted: true
     mode: INPUT
-  #on_press:
-  #  script.execute: doorbell_ring
+  on_press:
+    text_sensor.template.publish:
+      id: last_rung_2
+      state: !lambda |-
+        return $get_iso_time;
+
+text_sensor:
+- platform: template
+  id: last_rung_1
+  name: Doorbell 1 last rung
+- platform: template
+  id: last_rung_2
+  name: Doorbell 2 last rung
