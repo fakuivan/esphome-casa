@@ -17,6 +17,13 @@ esp8266:
 sensor:
 - platform: pipsolar
   pipsolar_id: inverter0
+  grid_voltage:
+    name: Grid voltage
+    state_class: measurement
+    icon: mdi:sine-wave
+  grid_frequency:
+    name: Grid frequency
+    state_class: measurement
   ac_output_apparent_power:
     name: Output apparent power
     state_class: measurement
@@ -164,6 +171,13 @@ switch:
       select.set:
         id: output_mode
         option: SBU
+    entity_category: diagnostic
+
+text_sensor:
+- platform: pipsolar
+  pipsolar_id: inverter0
+  last_qpiws:
+    name: Warnings and faults response
     entity_category: diagnostic
 
 select:
