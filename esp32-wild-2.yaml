@@ -1,0 +1,26 @@
+esphome:
+  name: esp32-wild-2
+  friendly_name: esp32_wild_2
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret esp32_wild_2_params
+      ap_ssid: Esp32-Wild-2 Fallback Hotspot
+
+sensor:
+- platform: dht
+  pin: GPIO33
+  temperature:
+    name: Temperature
+  humidity:
+    name: Humidity
+  update_interval: 60s
