@@ -44,6 +44,7 @@ switch:
       }
       if (id($id_load_shed).state && !id(setting_up_load_shedding)) {
         id($id_requested_shedding_stop).publish_state(true);
+        id($id_turn_on_after_shedding).turn_on();
       }
   turn_off_action:
     lambda: |-
