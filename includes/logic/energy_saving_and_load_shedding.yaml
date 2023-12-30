@@ -33,7 +33,7 @@ switch:
   name: Relay
   turn_on_action:
     lambda: |-
-      if (!id($id_load_shed).state || (id(setting_up_load_shedding) && id($id_turn_on_after_shedding).state)) {
+      if (id(setting_up_load_shedding) ? id($id_turn_on_after_shedding).state : !id($id_load_shed).state) {
         id($id_requested_shedding_stop).publish_state(false);
         id(turn_inner_relay)->execute(true);
         id($id_turn_on_after_shedding).turn_on();
