@@ -142,6 +142,15 @@ class EnergyManagementComponent : public Component {
   EnergyManagement *energy_management_{nullptr};
 };
 
+class OptimisticSwitch : public switch_::Switch, public Component {
+ public:
+  void setup() override{};
+  void dump_config() override { LOG_SWITCH("", "Optimistic Switch", this); };
+
+ protected:
+  void write_state(bool state) { this->publish_state(state); };
+};
+
 template <typename... Ts>
 class EnergyManagementSetDeviceStateAction : public Action<Ts...> {
   EnergyManagementSetDeviceStateAction(EnergyManagementComponent *parent)

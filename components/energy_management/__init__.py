@@ -24,6 +24,10 @@ EnergyManagementComponent = energy_management_ns.class_(
     "EnergyManagementComponent", cg.Component
 )
 
+OptimisticSwitch = energy_management_ns.class_(
+    "OptimisticSwitch", switch.Switch, cg.Component
+)
+
 EnergyManagementSetDeviceStateAction = energy_management_ns.class_(
     "EnergyManagementSetDeviceStateAction", automation.Action
 )
@@ -33,10 +37,10 @@ MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EnergyManagementComponent),
-        cv.Required(CONF_LOAD_SHED_SWITCH): switch.switch_schema(TemplateSwitch),
-        cv.Required(CONF_ENERGY_SAVING_SWITCH): switch.switch_schema(TemplateSwitch),
+        cv.Required(CONF_LOAD_SHED_SWITCH): switch.switch_schema(OptimisticSwitch),
+        cv.Required(CONF_ENERGY_SAVING_SWITCH): switch.switch_schema(OptimisticSwitch),
         cv.Required(CONF_TURN_ON_AFTER_SHEDDING_SWITCH): switch.switch_schema(
-            TemplateSwitch
+            OptimisticSwitch
         ),
         cv.Required(
             CONF_ENERGY_SAVING_OVERWRITTEN
