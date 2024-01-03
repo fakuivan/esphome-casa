@@ -99,6 +99,11 @@ class EnergyManagementComponent : public Component {
       ESP_LOGE(TAG, "Tried to setup initialized component");
       this->mark_failed();
     }
+    turn_on_after_shedding_->publish_state(false);
+    load_shed_->publish_state(false);
+    energy_saving_->publish_state(false);
+    requested_shedding_stop_->publish_initial_state(false);
+    energy_saving_overwritten_->publish_initial_state(false);
     auto set_device_state_lambda = this->device_state_lambda_.value();
     energy_management_ = new EnergyManagement(
         turn_on_after_shedding_, load_shed_, energy_saving_,
