@@ -150,6 +150,14 @@ class EnergyManagementComponent : public Component {
     }
   }
 
+  [[nodiscard]] bool device_can_turn_on() {
+    if (!this->is_ready()) {
+      ESP_LOGW(TAG, "device_can_turn_on was called before component was ready");
+      return true;
+    }
+    return this->energy_management_->device_can_turn_on();
+  }
+
  private:
   sw *turn_on_after_shedding_;
   sw *load_shed_;
@@ -180,6 +188,18 @@ class EnergyManagementSetDeviceStateCondition : public Condition<Ts...> {
   bool check(Ts... x) override {
     return this->parent_->set_device_state(this->state_.value(x...));
   }
+
+ protected:
+  EnergyManagementComponent *parent_;
+};
+
+template <typename... Ts>
+class EnergyManagementDeviceCanTurnOnCondition : public Condition<Ts...> {
+ public:
+  EnergyManagementDeviceCanTurnOnCondition(EnergyManagementComponent *parent)
+      : parent_(parent) {}
+
+  bool check(Ts... x) override { return this->parent_->device_can_turn_on(); }
 
  protected:
   EnergyManagementComponent *parent_;

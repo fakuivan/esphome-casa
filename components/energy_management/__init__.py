@@ -31,6 +31,10 @@ EnergyManagementSetDeviceStateCondition = energy_management_ns.class_(
     "EnergyManagementSetDeviceStateCondition", automation.Condition
 )
 
+EnergyManagementDeviceCanTurnOnCondition = energy_management_ns.class_(
+    "EnergyManagementDeviceCanTurnOnCondition", automation.Condition
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EnergyManagementComponent),
@@ -92,4 +96,20 @@ async def energy_management_set_to_code(
     component = cg.new_Pvariable(action_id, template_arg, parent_id)
     template_ = await cg.templatable(config[CONF_STATE], args, bool)
     cg.add(component.set_state(template_))
+    return component
+
+@automation.register_condition(
+    "energy_management.device_can_turn_on",
+    EnergyManagementDeviceCanTurnOnCondition,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(EnergyManagementComponent),
+        }
+    ),
+)
+async def energy_management_set_to_code(
+    config: esphome.util.OrderedDict, action_id: ID, template_arg, args
+):
+    parent_id = await cg.get_variable(config[CONF_ID])
+    component = cg.new_Pvariable(action_id, template_arg, parent_id)
     return component
