@@ -30,7 +30,7 @@ class EnergyManagement {
     energy_saving->add_on_state_callback([this](bool turned_on) {
       if (turned_on) {
         this->setting_up_energy_saving = true;
-        if (this->set_device_state(false)) {
+        if (!this->set_device_state(false)) {
           this->energy_saving_overwritten->publish_state(true);
         }
       } else {
