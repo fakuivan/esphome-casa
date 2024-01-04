@@ -28,8 +28,8 @@ OptimisticSwitch = energy_management_ns.class_(
     "OptimisticSwitch", switch.Switch, cg.Component
 )
 
-EnergyManagementSetDeviceStateAction = energy_management_ns.class_(
-    "EnergyManagementSetDeviceStateAction", automation.Action
+EnergyManagementSetDeviceStateCondition = energy_management_ns.class_(
+    "EnergyManagementSetDeviceStateCondition", automation.Condition
 )
 
 # what does this do?
@@ -76,9 +76,9 @@ async def to_code(config: esphome.util.OrderedDict):
     cg.add(component.set_device_state_lambda(set_device_state_lambda))
 
 
-@automation.register_action(
+@automation.register_condition(
     "energy_management.set_device_state",
-    EnergyManagementSetDeviceStateAction,
+    EnergyManagementSetDeviceStateCondition,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(EnergyManagementComponent),

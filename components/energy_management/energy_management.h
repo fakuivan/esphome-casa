@@ -129,11 +129,14 @@ class EnergyManagementComponent : public Component {
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
-  void set_device_state(bool state) {
+  // Notifies the component of the desired state change and
+  // returns the state the device should be at, knowing the new intentions
+  [[nodiscard]] bool set_device_state(bool state) {
     if (state) {
-      this->energy_management_->on_device_turn_on();
+      return this->energy_management_->on_device_turn_on();
     } else {
       this->energy_management_->on_device_turn_off();
+      return false;
     }
   }
 
@@ -157,13 +160,14 @@ class OptimisticSwitch : public switch_::Switch, public Component {
 };
 
 template <typename... Ts>
-class EnergyManagementSetDeviceStateAction : public Action<Ts...> {
-  EnergyManagementSetDeviceStateAction(EnergyManagementComponent *parent)
+class EnergyManagementSetDeviceStateCondition : public Condition<Ts...> {
+ public:
+  EnergyManagementSetDeviceStateCondition(EnergyManagementComponent *parent)
       : parent_(parent) {}
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
-    this->parent_->set_device_state(this->state_.value(x...));
+  bool check(Ts... x) override {
+    return this->parent_->set_device_state(this->state_.value(x...));
   }
 
  protected:
