@@ -110,10 +110,16 @@ class EnergyManagementComponent : public Component {
         [this](bool new_state) {
           return this->device_state_lambda_->operator()(new_state);
         });
+    if (this->initial_device_state_) {
+      std::ignore = this->set_device_state(true);
+    }
   }
   void dump_config() override{
       // ESP_LOGCONFIG(TAG, "EnergyManagement:");
   };
+  void set_initial_device_state(bool state) {
+    this->initial_device_state_ = state;
+  }
   void set_switches_and_sensors(sw *turn_on_after_shedding, sw *load_shed,
                                 sw *energy_saving, bs *requested_shedding_stop,
                                 bs *energy_saving_overwritten) {
@@ -130,8 +136,13 @@ class EnergyManagementComponent : public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
   // Notifies the component of the desired state change and
   // returns the state the device should be at, knowing the new intentions
-  [[nodiscard]] bool set_device_state(bool state) {
-    if (state) {
+  [[nodiscard]] bool set_device_state(bool desired_state) {
+    if (!this->is_ready()) {
+      ESP_LOGW(TAG, "set_device_state was called before component was ready");
+      this->set_initial_device_state(desired_state);
+      return desired_state;
+    }
+    if (desired_state) {
       return this->energy_management_->on_device_turn_on();
     } else {
       this->energy_management_->on_device_turn_off();
@@ -145,6 +156,7 @@ class EnergyManagementComponent : public Component {
   sw *energy_saving_;
   bs *requested_shedding_stop_;
   bs *energy_saving_overwritten_;
+  bool initial_device_state_ = false;
   optional<std::function<bool(bool)>> device_state_lambda_;
   EnergyManagement *energy_management_{nullptr};
 };
