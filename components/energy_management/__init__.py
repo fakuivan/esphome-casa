@@ -4,7 +4,6 @@ from esphome.const import (
     CONF_ID,
     CONF_STATE,
 )
-from esphome.components.template.switch import TemplateSwitch
 from esphome.components import binary_sensor, switch
 
 # Typing imports
@@ -32,8 +31,6 @@ EnergyManagementSetDeviceStateCondition = energy_management_ns.class_(
     "EnergyManagementSetDeviceStateCondition", automation.Condition
 )
 
-# what does this do?
-MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EnergyManagementComponent),
@@ -51,6 +48,8 @@ CONFIG_SCHEMA = cv.Schema(
         },
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+AUTO_LOAD = ["switch", "binary_sensor"]
 
 
 async def to_code(config: esphome.util.OrderedDict):
@@ -89,7 +88,6 @@ async def to_code(config: esphome.util.OrderedDict):
 async def energy_management_set_to_code(
     config: esphome.util.OrderedDict, action_id: ID, template_arg, args
 ):
-    print(template_arg, args)
     parent_id = await cg.get_variable(config[CONF_ID])
     component = cg.new_Pvariable(action_id, template_arg, parent_id)
     template_ = await cg.templatable(config[CONF_STATE], args, bool)

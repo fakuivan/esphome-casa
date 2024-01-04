@@ -104,7 +104,6 @@ class EnergyManagementComponent : public Component {
     energy_saving_->publish_state(false);
     requested_shedding_stop_->publish_initial_state(false);
     energy_saving_overwritten_->publish_initial_state(false);
-    auto set_device_state_lambda = this->device_state_lambda_.value();
     energy_management_ = new EnergyManagement(
         turn_on_after_shedding_, load_shed_, energy_saving_,
         requested_shedding_stop_, energy_saving_overwritten_,
