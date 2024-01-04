@@ -93,5 +93,5 @@ async def energy_management_set_to_code(
     parent_id = await cg.get_variable(config[CONF_ID])
     component = cg.new_Pvariable(action_id, template_arg, parent_id)
     template_ = await cg.templatable(config[CONF_STATE], args, bool)
-    cg.add(component.set_device_state(template_))
+    cg.add(component.set_state(template_))
     return component
