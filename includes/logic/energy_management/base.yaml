@@ -1,0 +1,22 @@
+external_components:
+  source:
+    type: local
+    path: ./components
+  components:
+  - energy_management
+
+substitutions:
+  id_em: em_2
+
+energy_management:
+  id: $id_em
+  load_shed_switch:
+    name: Load shed
+  energy_saving_switch:
+    name: Energy saving
+  turn_on_after_shedding_switch:
+    name: Turn back on after shedding
+  energy_saving_overwritten_sensor:
+    name: Energy saving overwritten
+  requested_shedding_stop_sensor:
+    name: Requested to stop shedding

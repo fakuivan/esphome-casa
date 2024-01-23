@@ -1,0 +1,61 @@
+esphome:
+  on_boot:
+    # Priority for energy management is 600
+    # set this slightly lower to prevent
+    # using the component before it's ready
+  - priority: 599
+    then:
+      if:
+        condition:
+          switch.is_on: $id_relay_inner
+        then:
+          switch.turn_on: $id_relay
+
+packages:
+  em_base: !include ./base.yaml
+
+substitutions:
+  id_relay_inner: relay_inner
+  id_relay: relay
+  id_em: em_2
+
+switch:
+- platform: template
+  optimistic: False
+  name: Relay
+  id: $id_relay
+  turn_on_action:
+    lambda: |-
+      id($id_relay).publish_state(id(on_turn_action)(true));
+  turn_off_action:
+    lambda: |-
+      id($id_relay).publish_state(id(on_turn_action)(false));
+  on_turn_on:
+    lambda: id($id_relay_inner).turn_on();
+  on_turn_off:
+    lambda: id($id_relay_inner).turn_off();
+
+energy_management:
+  id: $id_em
+  set_device_state:
+    lambda: |-
+      bool prev = id($id_relay).state;
+      id(internal_update) = true;
+      switch_to ? id($id_relay).turn_on() : id($id_relay).turn_off();
+      return prev;
+
+globals:
+- id: internal_update
+  type: bool
+  initial_value: "false"
+- id: on_turn_action
+  type: std::function<bool(bool)>
+  initial_value: |-
+    [](bool turn_on) {
+      if (!id(internal_update)) {
+        turn_on = id($id_em).set_device_state(turn_on);
+      } else {
+        id(internal_update) = false;
+      }
+      return turn_on;
+    }

@@ -10,86 +10,114 @@ using bs = esphome::binary_sensor::BinarySensor;
 
 static const char *const TAG = "energy_management";
 
+template <typename T>
+bool advance(T &current_value, const T &&expected_value, const T &&new_value) {
+  if (current_value == expected_value) {
+    current_value = new_value;
+    return true;
+  }
+  return false;
+}
+
 class EnergyManagement {
  public:
-  ~EnergyManagement() = delete;
-  EnergyManagement(sw *turn_on_after_shedding, sw *load_shed, sw *energy_saving,
-                   bs *requested_shedding_stop, bs *energy_saving_overwritten,
-                   std::function<bool(bool)> &&set_device_state)
-      : turn_on_after_shedding(turn_on_after_shedding),
-        load_shed(load_shed),
-        energy_saving(energy_saving),
-        requested_shedding_stop(requested_shedding_stop),
-        energy_saving_overwritten(energy_saving_overwritten),
-        set_device_state(set_device_state) {
-    load_shed->add_on_state_callback([this](bool state) {
-      this->setting_up_load_shedding = true;
-      this->set_device_state(!state);
-    });
+  enum class MODE {
+    STOPPED,
+    ENERGY_SAVING,
+    LOAD_SHEDDING,
+    BOTH,
+  };
 
-    energy_saving->add_on_state_callback([this](bool turned_on) {
-      if (turned_on) {
-        this->setting_up_energy_saving = true;
-        if (!this->set_device_state(false)) {
-          this->energy_saving_overwritten->publish_state(true);
-        }
-      } else {
-        if (!this->energy_saving_overwritten->state) {
-          this->setting_up_energy_saving = true;
-          this->set_device_state(true);
-        }
-        this->energy_saving_overwritten->publish_state(false);
-      }
-    });
-  }
+  using getter = std::function<bool()>;
+  using setter = std::function<void(bool)>;
+  // sets the desired value and returns the previous state
+  using get_setter = std::function<bool(bool)>;
 
-  void on_device_turn_off() {
-    if (!setting_up_load_shedding) {
-      turn_on_after_shedding->turn_off();
-    } else {
-      requested_shedding_stop->publish_state(false);
-    }
-    setting_up_load_shedding = false;
-    energy_saving_overwritten->publish_state(energy_saving->state &&
-                                             !setting_up_energy_saving);
-    setting_up_energy_saving = false;
-  }
+  EnergyManagement(get_setter get_set_load_state,
+                   setter set_es_restore_load_state,
+                   getter get_es_restore_load_state,
+                   setter set_ls_restore_load_state,
+                   getter get_ls_restore_load_state)
+      : get_set_load_state(get_set_load_state),
+        get_es_restore_load_state(get_es_restore_load_state),
+        set_es_restore_load_state(set_es_restore_load_state),
+        get_ls_restore_load_state(get_ls_restore_load_state),
+        set_ls_restore_load_state(set_ls_restore_load_state) {}
 
-  bool on_device_turn_on() {
-    if (!setting_up_load_shedding && load_shed->state) {
-      requested_shedding_stop->publish_state(true);
-      turn_on_after_shedding->turn_on();
-    }
-    if (device_can_turn_on()) {
-      requested_shedding_stop->publish_state(false);
-      turn_on_after_shedding->turn_on();
-      setting_up_load_shedding = false;
-      energy_saving_overwritten->publish_state(energy_saving->state &&
-                                               !setting_up_energy_saving);
-      setting_up_energy_saving = false;
+  bool on_load_shed_on() {
+    if (advance(mode, MODE::STOPPED, MODE::LOAD_SHEDDING) ||
+        advance(mode, MODE::ENERGY_SAVING, MODE::BOTH)) {
+      set_ls_restore_load_state(get_set_load_state(false));
       return true;
     }
-    setting_up_load_shedding = false;
     return false;
   }
 
-  [[nodiscard]] bool device_can_turn_on() const {
-    return setting_up_load_shedding ? turn_on_after_shedding->state
-                                    : !load_shed->state;
+  bool on_load_shed_off() {
+    if (advance(mode, MODE::BOTH, MODE::ENERGY_SAVING) ||
+        advance(mode, MODE::LOAD_SHEDDING, MODE::STOPPED)) {
+      if (get_ls_restore_load_state()) {
+        get_set_load_state(true);
+      }
+      return true;
+    }
+    return false;
   }
 
-  sw *const turn_on_after_shedding;
-  sw *const load_shed;
-  sw *const energy_saving;
-  bs *const requested_shedding_stop;
-  bs *const energy_saving_overwritten;
-  std::function<bool(bool)> set_device_state;
-  static constexpr char const *class_name =
-      "energy_management::EnergyManagement";
+  [[nodiscard]] bool load_state_change(bool load_state) {
+    if (mode == MODE::ENERGY_SAVING) {
+      set_es_restore_load_state(false);
+    }
+    if (mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING) {
+      set_ls_restore_load_state(load_state);
+    }
+    return device_can_turn_on() && load_state;
+  }
+
+  bool on_energy_saving_on() {
+    if (advance(mode, MODE::STOPPED, MODE::ENERGY_SAVING)) {
+      set_es_restore_load_state(get_set_load_state(false));
+      return true;
+    }
+    if (advance(mode, MODE::LOAD_SHEDDING, MODE::BOTH)) {
+      set_es_restore_load_state(get_ls_restore_load_state());
+      return true;
+    }
+    return false;
+  }
+
+  bool on_energy_saving_off() {
+    if (advance(mode, MODE::ENERGY_SAVING, MODE::STOPPED)) {
+      if (get_es_restore_load_state()) {
+        get_set_load_state(true);
+      }
+      return true;
+    }
+    if (advance(mode, MODE::BOTH, MODE::LOAD_SHEDDING)) {
+      if (get_es_restore_load_state()) {
+        set_ls_restore_load_state(true);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // energy saving is activated, load is turned on then
+  // off, then load shedding is activated
+
+  [[nodiscard]] const MODE &get_mode() const { return mode; }
+
+  [[nodiscard]] bool device_can_turn_on() const {
+    return (mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING);
+  }
 
  private:
-  bool setting_up_load_shedding = false;
-  bool setting_up_energy_saving = false;
+  MODE mode = MODE::STOPPED;
+  const std::function<bool(bool)> get_set_load_state;
+  const setter set_ls_restore_load_state;
+  const getter get_ls_restore_load_state;
+  const setter set_es_restore_load_state;
+  const getter get_es_restore_load_state;
 };
 
 class EnergyManagementComponent : public Component {
@@ -105,15 +133,33 @@ class EnergyManagementComponent : public Component {
     requested_shedding_stop_->publish_initial_state(false);
     energy_saving_overwritten_->publish_initial_state(false);
     energy_management_ = new EnergyManagement(
-        turn_on_after_shedding_, load_shed_, energy_saving_,
-        requested_shedding_stop_, energy_saving_overwritten_,
         [this](bool new_state) {
           return this->device_state_lambda_->operator()(new_state);
-        });
+        },
+        // Negate this one since we're doing _overwritten_ instead of _should
+        // restore_
+        [this](bool new_state) {
+          this->energy_saving_overwritten_->publish_state(!new_state);
+        },
+        [this]() { return !this->energy_saving_overwritten_->state; },
+        // Keep this one as normal
+        [this](bool new_state) {
+          this->turn_on_after_shedding_->publish_state(new_state);
+        },
+        [this]() { return this->turn_on_after_shedding_->state; });
     if (this->initial_device_state_) {
       std::ignore = this->set_device_state(true);
     }
+    load_shed_->add_on_state_callback([this](bool state) {
+      state ? this->energy_management_->on_load_shed_on()
+            : this->energy_management_->on_load_shed_off();
+    });
+    energy_saving_->add_on_state_callback([this](bool state) {
+      state ? this->energy_management_->on_energy_saving_on()
+            : this->energy_management_->on_energy_saving_off();
+    });
   }
+
   void dump_config() override{
       // ESP_LOGCONFIG(TAG, "EnergyManagement:");
   };
@@ -142,12 +188,7 @@ class EnergyManagementComponent : public Component {
       this->set_initial_device_state(desired_state);
       return desired_state;
     }
-    if (desired_state) {
-      return this->energy_management_->on_device_turn_on();
-    } else {
-      this->energy_management_->on_device_turn_off();
-      return false;
-    }
+    return this->energy_management_->load_state_change(desired_state);
   }
 
   [[nodiscard]] bool device_can_turn_on() {
