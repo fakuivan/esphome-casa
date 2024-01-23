@@ -105,11 +105,17 @@ class EnergyManagement {
   // energy saving is activated, load is turned on then
   // off, then load shedding is activated
 
+  [[nodiscard]] bool is_load_shedding() const {
+    return mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING;
+  }
+
+  [[nodiscard]] bool is_energy_saving() const {
+    return mode == MODE::BOTH || mode == MODE::ENERGY_SAVING;
+  }
+
   [[nodiscard]] const MODE &get_mode() const { return mode; }
 
-  [[nodiscard]] bool device_can_turn_on() const {
-    return !(mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING);
-  }
+  [[nodiscard]] bool device_can_turn_on() const { return !is_load_shedding(); }
 
  private:
   MODE mode = MODE::STOPPED;
@@ -157,6 +163,9 @@ class EnergyManagementComponent : public Component {
     energy_saving_->add_on_state_callback([this](bool state) {
       state ? this->energy_management_->on_energy_saving_on()
             : this->energy_management_->on_energy_saving_off();
+      if (!state) {
+        energy_saving_overwritten_->publish_state(false);
+      }
     });
   }
 
@@ -187,6 +196,10 @@ class EnergyManagementComponent : public Component {
       ESP_LOGW(TAG, "set_device_state was called before component was ready");
       this->set_initial_device_state(desired_state);
       return desired_state;
+    }
+    if (!this->energy_management_->is_load_shedding()) {
+      desired_state ? this->turn_on_after_shedding_->turn_on()
+                    : this->turn_on_after_shedding_->turn_off();
     }
     return this->energy_management_->load_state_change(desired_state);
   }
