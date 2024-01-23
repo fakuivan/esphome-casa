@@ -32,17 +32,20 @@ class EnergyManagement {
   using setter = std::function<void(bool)>;
   // sets the desired value and returns the previous state
   using get_setter = std::function<bool(bool)>;
+  using event = std::function<void()>;
 
   EnergyManagement(get_setter get_set_load_state,
                    setter set_es_restore_load_state,
                    getter get_es_restore_load_state,
                    setter set_ls_restore_load_state,
-                   getter get_ls_restore_load_state)
+                   getter get_ls_restore_load_state,
+                   event on_request_shedding_stop)
       : get_set_load_state(get_set_load_state),
         get_es_restore_load_state(get_es_restore_load_state),
         set_es_restore_load_state(set_es_restore_load_state),
         get_ls_restore_load_state(get_ls_restore_load_state),
-        set_ls_restore_load_state(set_ls_restore_load_state) {}
+        set_ls_restore_load_state(set_ls_restore_load_state),
+        request_shedding_stop(on_request_shedding_stop) {}
 
   bool on_load_shed_on() {
     if (advance(mode, MODE::STOPPED, MODE::LOAD_SHEDDING) ||
@@ -71,7 +74,12 @@ class EnergyManagement {
     if (mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING) {
       set_ls_restore_load_state(load_state);
     }
-    return device_can_turn_on() && load_state;
+    if (device_can_turn_on()) {
+      return load_state;
+    } else {
+      request_shedding_stop();
+      return false;
+    }
   }
 
   bool on_energy_saving_on() {
@@ -124,6 +132,7 @@ class EnergyManagement {
   const getter get_ls_restore_load_state;
   const setter set_es_restore_load_state;
   const getter get_es_restore_load_state;
+  const event request_shedding_stop;
 };
 
 class EnergyManagementComponent : public Component {
@@ -152,13 +161,17 @@ class EnergyManagementComponent : public Component {
         [this](bool new_state) {
           this->turn_on_after_shedding_->publish_state(new_state);
         },
-        [this]() { return this->turn_on_after_shedding_->state; });
+        [this]() { return this->turn_on_after_shedding_->state; },
+        [this]() { this->requested_shedding_stop_->publish_state(true); });
     if (this->initial_device_state_) {
       std::ignore = this->set_device_state(true);
     }
     load_shed_->add_on_state_callback([this](bool state) {
       state ? this->energy_management_->on_load_shed_on()
             : this->energy_management_->on_load_shed_off();
+      if (!state) {
+        this->requested_shedding_stop_->publish_state(false);
+      }
     });
     energy_saving_->add_on_state_callback([this](bool state) {
       state ? this->energy_management_->on_energy_saving_on()
