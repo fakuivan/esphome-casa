@@ -127,7 +127,7 @@ class EnergyManagement {
 
  private:
   MODE mode = MODE::STOPPED;
-  const std::function<bool(bool)> get_set_load_state;
+  const get_setter get_set_load_state;
   const setter set_ls_restore_load_state;
   const getter get_ls_restore_load_state;
   const setter set_es_restore_load_state;
@@ -177,7 +177,7 @@ class EnergyManagementComponent : public Component {
       state ? this->energy_management_->on_energy_saving_on()
             : this->energy_management_->on_energy_saving_off();
       if (!state) {
-        energy_saving_overwritten_->publish_state(false);
+        this->energy_saving_overwritten_->publish_state(false);
       }
     });
   }
