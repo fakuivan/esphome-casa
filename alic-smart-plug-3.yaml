@@ -11,6 +11,10 @@ esphome:
   name: alic-smart-plug-3
   friendly_name: alic_smart_plug_3
 
+substitutions:
+  id_relay_inner: relay_inner
+  id_em: em_1
+
 packages:
   basic: !include
     file: includes/basic.yaml
@@ -19,8 +23,8 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret alic_smart_plug_3_params
       ap_ssid: Alic-Smart-Plug-3
-  energy_management: !include
-    file: includes/logic/energy_saving_and_load_shedding.yaml
+  em_relay: !include
+    file: includes/logic/energy_management/relay.yaml
 
 bk72xx:
   board: cb2s
