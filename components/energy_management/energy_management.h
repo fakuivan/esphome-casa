@@ -108,7 +108,7 @@ class EnergyManagement {
   [[nodiscard]] const MODE &get_mode() const { return mode; }
 
   [[nodiscard]] bool device_can_turn_on() const {
-    return (mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING);
+    return !(mode == MODE::BOTH || mode == MODE::LOAD_SHEDDING);
   }
 
  private:
