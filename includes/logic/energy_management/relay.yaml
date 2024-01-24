@@ -24,6 +24,7 @@ switch:
   optimistic: False
   name: Relay
   id: $id_relay
+  restore_mode: DISABLED
   turn_on_action:
     lambda: |-
       id($id_relay).publish_state(id(on_turn_action)(true));
