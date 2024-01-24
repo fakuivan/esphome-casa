@@ -30,10 +30,19 @@ sensor:
   grid_frequency:
     name: Grid frequency
     state_class: measurement
+  ac_output_voltage:
+    name: Output voltage
+    id: output_voltage
+    state_class: measurement
   ac_output_apparent_power:
     name: Output apparent power
     state_class: measurement
     icon: mdi:lightbulb-on-outline
+    on_value:
+      then:
+        sensor.template.publish:
+          id: output_current
+          state: !lambda return x/id(output_voltage).state;
   ac_output_active_power:
     name: Output active power
     state_class: measurement
@@ -80,6 +89,14 @@ sensor:
         sensor.template.publish:
           id: batt_discharge_power
           state: !lambda return x*id(battery_voltage).state;
+
+- platform: template
+  name: Output current
+  id: output_current
+  state_class: measurement
+  device_class: current
+  unit_of_measurement: A
+  accuracy_decimals: 3
 
 - platform: template
   name: Battery discharging power
