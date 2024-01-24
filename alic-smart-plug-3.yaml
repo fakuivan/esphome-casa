@@ -80,9 +80,11 @@ switch:
 - platform: gpio
   id: $id_relay_inner
   internal: True
+  name: Relay (internal switch)
   pin: P8
   restore_mode: RESTORE_DEFAULT_OFF
   on_turn_on:
     light.turn_on: light_status
   on_turn_off:
     light.turn_off: light_status
+  entity_category: diagnostic
