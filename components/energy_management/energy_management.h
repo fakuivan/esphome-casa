@@ -41,10 +41,10 @@ class EnergyManagement {
                    getter get_ls_restore_load_state,
                    event on_request_shedding_stop)
       : get_set_load_state(get_set_load_state),
-        get_es_restore_load_state(get_es_restore_load_state),
-        set_es_restore_load_state(set_es_restore_load_state),
-        get_ls_restore_load_state(get_ls_restore_load_state),
         set_ls_restore_load_state(set_ls_restore_load_state),
+        get_ls_restore_load_state(get_ls_restore_load_state),
+        set_es_restore_load_state(set_es_restore_load_state),
+        get_es_restore_load_state(get_es_restore_load_state),
         request_shedding_stop(on_request_shedding_stop) {}
 
   bool on_load_shed_on() {
