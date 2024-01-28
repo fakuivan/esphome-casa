@@ -1,0 +1,45 @@
+# Creates a global and hijacks the type field to
+# allow for definitions being defined before
+# defining other globals, this serves as an
+# intermediate point between making your own
+# components and writing spaghetti code with
+# 5 different globals instead of using a finite
+# state machine or something better
+
+# Set dummy_id to some id you're not going to use
+# Set globals_type to the code you want to inject,
+#  node: I'd prefer writing your code elsewhere and
+#        adding an #include here, the path will be
+#        relative to the build src directory
+
+# Example usage:
+
+# globals:
+# - !include
+#   file: includes/hacks/type_for_globals.yaml
+#   vars:
+#     dummy_id: __dummy_id__
+#     globals_type: |-
+#       namespace test_xd {
+#         struct TEST {
+#           int test = 0;
+#         };
+#       }
+# - id: my_test
+#   type: test_xd::TEST
+#   initial_value: "test_xd::TEST()"
+
+id: $dummy_id
+type: |-
+  
+  // BEGIN HACKY WORKAROUND
+  #if !defined HACKY_GLOBALS_TYPE_DEF_${dummy_id}
+  void*> *$dummy_id;
+  #define HACKY_GLOBALS_TYPE_DEF_${dummy_id}
+  $globals_type
+  #else
+  void*>(nullptr);
+  #endif
+  // END HACKY WORKAROUND
+  //
+initial_value: $dummy_initial_value

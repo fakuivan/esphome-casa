@@ -1,0 +1,16 @@
+substitutions: {}
+  #include_file: dir/asdas.h
+  #include_dummy_id: asdas
+  #include_file_name: asdas.h
+
+globals:
+- !include
+  file: ./type_for_globals.yaml
+  vars:
+    dummy_id: $include_dummy_id
+    globals_type: |-
+      #include "$include_file_name"
+
+esphome:
+  includes:
+  - $include_file
