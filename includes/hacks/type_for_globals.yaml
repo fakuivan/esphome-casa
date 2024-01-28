@@ -42,4 +42,4 @@ type: |-
   #endif
   // END HACKY WORKAROUND
   //
-initial_value: $dummy_initial_value
+initial_value: nullptr

@@ -13,6 +13,7 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret carrier_ac_params
       ap_ssid: Carrier-Ac
+  em_base: !include includes/logic/energy_management/base.yaml
 
 # Disable logging over UART (required)
 logger:
@@ -52,109 +53,218 @@ climate:
     name: Humidity
   on_state:
     lambda: |-
-      if (x.mode == CLIMATE_MODE_OFF) {
-        if (id(setting_up_load_shedding)) {
-          id(setting_up_load_shedding) = false;
-        } else if (!id(load_shed).state) {
-          id(turn_on_after_shedding).turn_off();
-        }
-      } else {
-        id(energy_saving_overwrite).execute();
-        id(turn_on_after_shedding).turn_on();
-        if (id(load_shed).state) {
-          id(requested_shedding_stop).publish_state(true);
-          id(setting_up_load_shedding) = true;
-          id(delayed_turn_off).execute();
-        } else {
-          id(setting_up_load_shedding) = false;
-        }
-      }
-
-binary_sensor:
-- platform: template
-  id: energy_saving_overwritten
-  name: Energy saving overwritten
-  device_class: tamper
-
-- platform: template
-  id: requested_shedding_stop
-  name: Requested to stop shedding
-
-script:
-- id: energy_saving_overwrite
-  then:
-    lambda: |-
-      id(energy_saving_overwritten).publish_state(
-        id(energy_saving).state && !id(setting_up_energy_saving));
-      id(setting_up_energy_saving) = false;
-- id: delayed_turn_off
-  then:
-  - delay: 1s
-  - while:
-      condition:
-        lambda: return id(carrier_ac).mode != CLIMATE_MODE_OFF && id(load_shed).state;
-      then:
-      - globals.set:
-          id: setting_up_load_shedding
-          value: !lambda return true;
-      - midea_ac.power_off:
-          id: carrier_ac
-      - delay: 1s
+      id(ac_update_action)(x.mode != CLIMATE_MODE_OFF);
 
 switch:
 - platform: template
-  id: turn_on_after_shedding
-  name: Turn back on after shedding
-  optimistic: True
-  restore_mode: RESTORE_DEFAULT_OFF
-
-- platform: template
-  id: load_shed
-  name: Load shed
-  optimistic: True
+  id: device_on_optimistic
+  name: Device on (optimistic)
+  optimistic: False
+  entity_category: diagnostic
   turn_on_action:
     lambda: |-
-      if (id(carrier_ac).mode == CLIMATE_MODE_OFF)
-        return;
-      id(setting_up_load_shedding) = true;
-      id(carrier_ac).do_power_off();
+      id(switch_update_action)(true, *id(device_on_optimistic));
   turn_off_action:
     lambda: |-
-      id(setting_up_load_shedding) = true;
-      id(requested_shedding_stop).publish_state(false);
-      if (id(turn_on_after_shedding).state && id(carrier_ac).mode == CLIMATE_MODE_OFF) {
-        id(carrier_ac).do_power_on();
-      } else {
-        id(setting_up_load_shedding) = false;
-      }
+      id(switch_update_action)(false, *id(device_on_optimistic));
 
+binary_sensor:
+- name: Waiting for action
+  platform: template
+  lambda: return id(waiting_for_action);
+  entity_category: diagnostic
+- name: Second toggle
+  platform: template
+  lambda: return id(second_toggle);
+  entity_category: diagnostic
+- name: External update
+  platform: template
+  lambda: return id(external_update);
+  entity_category: diagnostic
+- name: Action sent
+  platform: template
+  lambda: return id(action_sent);
+  entity_category: diagnostic
+
+sensor:
 - platform: template
-  id: energy_saving
-  name: Energy saving
-  optimistic: True
-  turn_off_action:
-    lambda: |-
-      if (!id(energy_saving_overwritten).state) {
-        id(setting_up_energy_saving) = true;
-        id(carrier_ac).do_power_on();
-      }
-      id(energy_saving_overwritten).publish_state(false);
+  name: Total updates
+  entity_category: diagnostic
+  lambda: return id(updates);
 
-  turn_on_action:
+
+energy_management:
+  id: $id_em
+  set_device_state:
     lambda: |-
-      if (id(carrier_ac).mode == CLIMATE_MODE_OFF) {
-        id(energy_saving_overwritten).publish_state(true);
-      } else {
-        id(setting_up_energy_saving) = true;
-        id(carrier_ac).do_power_off();
-      }
+      bool prev = id(device_on_optimistic).state;
+      id(update_from_em) = true;
+      switch_to ? id(device_on_optimistic).turn_on() : id(device_on_optimistic).turn_off();
+      return prev;
+
+script:
+- id: delayed_action
+  mode: restart
+  then:
+  - lambda: |-
+      ESP_LOGD("", "Waiting before sending action");
+      id(action_sent) = false;
+  - delay: 1s
+  - while:
+      condition:
+        lambda: return id(waiting_for_action);
+      then:
+      - lambda: |-
+          //ESP_LOGD("", "Sending action");
+          id(action_sent) = true;
+          if (id(device_on_optimistic).state != id(second_toggle)) {
+            id(carrier_ac).do_power_on();
+          } else {
+            id(carrier_ac).do_power_off();
+          }
+      - delay: 4s
 
 globals:
-- id: setting_up_energy_saving
+- id: ac_update_action
+  type: std::function<void(bool)>
+  initial_value: |-
+    [](bool turn_on) {
+      //if ((turn_on == id(last_ac_state)) && !waiting_for_action) {
+      //  ESP_LOGD("", "Ignoring update from AC since it's not due to power status");
+      //  return;
+      //}
+      id(last_ac_state) = turn_on;
+      if (id(waiting_for_action)) {
+        bool expected_action = id(device_on_optimistic).state != id(second_toggle);
+        bool is_wrong_action = expected_action != turn_on;
+        if (!id(second_toggle) || is_wrong_action) {
+          id(stop_delayed_action)();
+        } else {
+          id(second_toggle) = false;
+          id(delayed_action).execute();
+        }
+        if (!is_wrong_action)
+          return;
+      }
+      if (id(device_on_optimistic).state == turn_on) return;
+      id(external_update) = true;
+      if (turn_on) {
+        id(device_on_optimistic).turn_on();
+      } else {
+        id(device_on_optimistic).turn_off();
+      }
+    }
+- id: stop_delayed_action
+  type: std::function<void()>
+  initial_value: |-
+    []() {
+      id(waiting_for_action) = false;
+      id(second_toggle) = false;
+      id(delayed_action).stop();
+      id(action_sent) = false;
+    }
+- id: switch_update_action
+  type: std::function<bool(bool, switch_::Switch &)>
+  # return wether or not the update was triggered by the AC changing state
+  # maybe turn all this into a "single depth queue output switch"?
+  initial_value: |-
+    [](bool turn_on, auto &self) {
+      //ESP_LOGD("", "Starting switch update");
+      id(updates)++;
+      
+      bool allow = id(on_pre_switch_update)(turn_on);
+      if (allow) {
+        //ESP_LOGD("", "Publishing state update since state change is allowed");
+        self.publish_state(turn_on);
+      }
+
+      auto start_delayed_action = []() {
+        id(waiting_for_action) = true;
+        id(second_toggle) = false;
+        id(delayed_action).execute();
+      };
+
+      if (id(external_update)) {
+        id(external_update) = false;
+        //ESP_LOGD("", "Update was external");
+        if (!allow) {
+          //ESP_LOGD("", "Reverting unallowed external action");
+          start_delayed_action();
+        }
+        return true;
+      }
+
+      if (!allow) {
+        //ESP_LOGD("", "Update to %s not allowed", turn_on ? "on" :"off");
+        return false;
+      }
+      
+      if (id(waiting_for_action)) {
+        // if we haven't sent anything yet and we get another toggle
+        // then we're back at the beginning
+        //ESP_LOGD("", "Action sent :%s", action_sent ? "yes" :"no");
+        if (!id(action_sent)) {
+          //ESP_LOGD("", "Action not yet sent, cancelling");
+          id(stop_delayed_action)();
+          return false;
+        }
+
+        // a third toggle cancels the second one, since we're going
+        // off -> on -> off -> on
+        // is the same as
+        // off -> on
+        // as long as we're still trying to send the first `on`
+        id(second_toggle) = !id(second_toggle);
+
+        //ESP_LOGD("", "Restarting action to reset timer");
+        id(delayed_action).execute();
+        return false;
+      }
+      
+      //ESP_LOGD("", "Starting action");
+      start_delayed_action();
+      return false;
+    }
+- id: on_pre_switch_update
+  type: std::function<bool(bool)>
+  # returns true if the update is allowed
+  initial_value: |-
+    [](bool turn_on) {
+      if (id(update_from_em)) {
+        id(update_from_em) = false;
+        return true;
+      }
+      return turn_on == id($id_em).set_device_state(turn_on);
+    }
+- id: waiting_for_action
   type: bool
   restore_value: no
   initial_value: "false"
-- id: setting_up_load_shedding
+- id: second_toggle
   type: bool
-  restore_value: no
   initial_value: "false"
+- id: external_update
+  type: bool
+  initial_value: "false"
+- id: action_sent
+  type: bool
+  initial_value: "false"
+- id: update_from_em
+  type: bool
+  initial_value: "false"
+- id: last_ac_state
+  type: bool
+  initial_value: "false"
+- id: updates
+  type: int
+  initial_value: "0"
+
+button:
+- platform: template
+  name: Turn on
+  on_press:
+    lambda: id(carrier_ac).do_power_on();
+- platform: template
+  name: Turn off
+  on_press:
+    lambda: id(carrier_ac).do_power_off();
