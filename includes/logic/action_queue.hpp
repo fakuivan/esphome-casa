@@ -27,17 +27,17 @@ class SingleDepthBinaryActionQueue {
                                cancel_action_t &&cancel_action,
                                send_state_t &&send_state,
                                bool initial_state = false)
-      : binary_state(initial_state),
-        send_action_(send_action),
+      : send_action_(send_action),
         cancel_action_(cancel_action),
-        send_state_(send_state) {}
+        send_state_(send_state),
+        binary_state(initial_state) {}
 
   // default constructor so that it works with esphome::optional
   SingleDepthBinaryActionQueue()
-      : binary_state(false),
-        send_action_([](bool, on_action_sent_t callback) { callback(); }),
+      : send_action_([](bool, on_action_sent_t callback) { callback(); }),
         cancel_action_([]() {}),
-        send_state_([](bool) {}) {}
+        send_state_([](bool) {}),
+        binary_state(false) {}
 
   ~SingleDepthBinaryActionQueue() {
     if (!action_sent && state != STATE::DONE) {
@@ -78,9 +78,6 @@ class SingleDepthBinaryActionQueue {
   }
 
  private:
-  send_action_t send_action_;
-  cancel_action_t cancel_action_;
-  send_state_t send_state_;
   void update_binary_state(bool turn_on) {
     binary_state = turn_on;
     send_state_(turn_on);
@@ -103,6 +100,9 @@ class SingleDepthBinaryActionQueue {
   void send_action(bool turn_on) {
     send_action_(turn_on, [this]() { this->action_sent = true; });
   }
+  send_action_t send_action_;
+  cancel_action_t cancel_action_;
+  send_state_t send_state_;
   STATE state = STATE::DONE;
   bool action_sent = false;
   bool binary_state = false;
