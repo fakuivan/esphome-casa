@@ -14,6 +14,12 @@ packages:
       <<: !secret carrier_ac_params
       ap_ssid: Carrier-Ac
   em_base: !include includes/logic/energy_management/base.yaml
+  action_queue_include: !include
+    file: includes/hacks/include_for_globals.yaml
+    vars:
+      include_dummy_id: __dummy_id_action_queue__
+      include_file: includes/logic/action_queue.hpp
+      include_file_name: action_queue.hpp
 
 # Disable logging over UART (required)
 logger:
@@ -53,7 +59,9 @@ climate:
     name: Humidity
   on_state:
     lambda: |-
-      id(ac_update_action)(x.mode != CLIMATE_MODE_OFF);
+      bool turn_on = x.mode != CLIMATE_MODE_OFF;
+      id(switch_action_queue).on_state_update(turn_on);
+
 
 switch:
 - platform: template
@@ -68,31 +76,6 @@ switch:
     lambda: |-
       id(switch_update_action)(false, *id(device_on_optimistic));
 
-binary_sensor:
-- name: Waiting for action
-  platform: template
-  lambda: return id(waiting_for_action);
-  entity_category: diagnostic
-- name: Second toggle
-  platform: template
-  lambda: return id(second_toggle);
-  entity_category: diagnostic
-- name: External update
-  platform: template
-  lambda: return id(external_update);
-  entity_category: diagnostic
-- name: Action sent
-  platform: template
-  lambda: return id(action_sent);
-  entity_category: diagnostic
-
-sensor:
-- platform: template
-  name: Total updates
-  entity_category: diagnostic
-  lambda: return id(updates);
-
-
 energy_management:
   id: $id_em
   set_device_state:
@@ -104,20 +87,20 @@ energy_management:
 
 script:
 - id: delayed_action
+  parameters:
+    turn_on: bool
   mode: restart
   then:
-  - lambda: |-
-      ESP_LOGD("", "Waiting before sending action");
-      id(action_sent) = false;
+  - lambda: ESP_LOGD("main", "Queueing turn %s action", turn_on ? "on" :"off");
   - delay: 1s
   - while:
       condition:
-        lambda: return id(waiting_for_action);
+        lambda: return true;
       then:
       - lambda: |-
-          //ESP_LOGD("", "Sending action");
-          id(action_sent) = true;
-          if (id(device_on_optimistic).state != id(second_toggle)) {
+          ESP_LOGD("main", "Requesting turn %s action", turn_on ? "on" :"off");
+          id(on_action_sent)();
+          if (turn_on) {
             id(carrier_ac).do_power_on();
           } else {
             id(carrier_ac).do_power_off();
@@ -125,139 +108,84 @@ script:
       - delay: 4s
 
 globals:
-- id: ac_update_action
-  type: std::function<void(bool)>
+- id: switch_action_queue
+  type: action_queue::SingleDepthBinaryActionQueue
   initial_value: |-
-    [](bool turn_on) {
-      //if ((turn_on == id(last_ac_state)) && !waiting_for_action) {
-      //  ESP_LOGD("", "Ignoring update from AC since it's not due to power status");
-      //  return;
-      //}
-      id(last_ac_state) = turn_on;
-      if (id(waiting_for_action)) {
-        bool expected_action = id(device_on_optimistic).state != id(second_toggle);
-        bool is_wrong_action = expected_action != turn_on;
-        if (!id(second_toggle) || is_wrong_action) {
-          id(stop_delayed_action)();
+    action_queue::SingleDepthBinaryActionQueue(
+      // send_action
+      ([](bool turn_on, action_queue::SingleDepthBinaryActionQueue::on_action_sent_t &&callback) {
+        ESP_LOGD("main::send_action", "Requesting turn %s action", turn_on ? "on" :"off");
+        id(on_action_sent) = callback;
+        id(delayed_action).execute(turn_on);
+      }),
+      // cancel_action
+      ([]() {
+        ESP_LOGD("main::cancel_action", "Cancelling delayed action");
+        id(delayed_action).stop();
+      }),
+      // send_external_state_update
+      ([](bool turn_on) {
+        id(external_update) = true;
+        if (turn_on) {
+          id(device_on_optimistic).turn_on();
         } else {
-          id(second_toggle) = false;
-          id(delayed_action).execute();
+          id(device_on_optimistic).turn_off();
         }
-        if (!is_wrong_action)
-          return;
-      }
-      if (id(device_on_optimistic).state == turn_on) return;
-      id(external_update) = true;
-      if (turn_on) {
-        id(device_on_optimistic).turn_on();
-      } else {
-        id(device_on_optimistic).turn_off();
-      }
-    }
-- id: stop_delayed_action
-  type: std::function<void()>
-  initial_value: |-
-    []() {
-      id(waiting_for_action) = false;
-      id(second_toggle) = false;
-      id(delayed_action).stop();
-      id(action_sent) = false;
-    }
+      })
+    )
 - id: switch_update_action
-  type: std::function<bool(bool, switch_::Switch &)>
+  type: std::function<void(bool, switch_::Switch&)>
   # return wether or not the update was triggered by the AC changing state
   # maybe turn all this into a "single depth queue output switch"?
   initial_value: |-
-    [](bool turn_on, auto &self) {
-      //ESP_LOGD("", "Starting switch update");
-      id(updates)++;
-      
-      bool allow = id(on_pre_switch_update)(turn_on);
-      if (allow) {
-        //ESP_LOGD("", "Publishing state update since state change is allowed");
-        self.publish_state(turn_on);
-      }
-
-      auto start_delayed_action = []() {
-        id(waiting_for_action) = true;
-        id(second_toggle) = false;
-        id(delayed_action).execute();
-      };
-
-      if (id(external_update)) {
-        id(external_update) = false;
-        //ESP_LOGD("", "Update was external");
-        if (!allow) {
-          //ESP_LOGD("", "Reverting unallowed external action");
-          start_delayed_action();
-        }
-        return true;
-      }
-
-      if (!allow) {
-        //ESP_LOGD("", "Update to %s not allowed", turn_on ? "on" :"off");
-        return false;
-      }
-      
-      if (id(waiting_for_action)) {
-        // if we haven't sent anything yet and we get another toggle
-        // then we're back at the beginning
-        //ESP_LOGD("", "Action sent :%s", action_sent ? "yes" :"no");
-        if (!id(action_sent)) {
-          //ESP_LOGD("", "Action not yet sent, cancelling");
-          id(stop_delayed_action)();
-          return false;
-        }
-
-        // a third toggle cancels the second one, since we're going
-        // off -> on -> off -> on
-        // is the same as
-        // off -> on
-        // as long as we're still trying to send the first `on`
-        id(second_toggle) = !id(second_toggle);
-
-        //ESP_LOGD("", "Restarting action to reset timer");
-        id(delayed_action).execute();
-        return false;
-      }
-      
-      //ESP_LOGD("", "Starting action");
-      start_delayed_action();
-      return false;
-    }
-- id: on_pre_switch_update
-  type: std::function<bool(bool)>
-  # returns true if the update is allowed
-  initial_value: |-
-    [](bool turn_on) {
+    // we're having issues with the same off state being sent twice
+    [](bool turn_on, switch_::Switch &self) {
       if (id(update_from_em)) {
+        ESP_LOGD("main::switch_update_action", "Update from energy management");
         id(update_from_em) = false;
-        return true;
+        if (turn_on != self.state) {
+          ESP_LOGD("main::switch_update_action", "Toggling action queue");
+          id(switch_action_queue).toggle();
+        }
+        self.publish_state(turn_on);
+        return;
       }
-      return turn_on == id($id_em).set_device_state(turn_on);
+
+      bool allow = (turn_on == self.state) || (turn_on == id($id_em).set_device_state(turn_on));
+      if (id(external_update)) {
+        ESP_LOGD("main::switch_update_action", "External update came from action queue");
+        id(external_update) = false;
+        ESP_LOGD("main::switch_update_action", "Update %sallowed by energy management", allow ? "" :"dis");
+        if (allow) {
+          self.publish_state(turn_on);
+          return;
+        }
+        ESP_LOGD("main::switch_update_action", "Reverting update");
+        id(switch_action_queue).toggle();
+        return;
+      }
+
+      ESP_LOGD("main::switch_update_action", "Manual switch update %sallowed by energy management", allow ? "" :"dis");
+      if (!allow) return;
+
+      if (turn_on != self.state) {
+        ESP_LOGD("main::switch_update_action", "Meaningful manual update, toggling");
+        id(switch_action_queue).toggle();
+      } else {
+        ESP_LOGD("main::switch_update_action", "Not meaningful update to %s, ignoring", turn_on ? "on" :"off");
+      }
+      self.publish_state(turn_on);
     }
-- id: waiting_for_action
-  type: bool
-  restore_value: no
-  initial_value: "false"
-- id: second_toggle
+- id: on_action_sent
+  type: std::function<void()>
+  initial_value: |-
+    []() {}
+- id: update_from_em
   type: bool
   initial_value: "false"
 - id: external_update
   type: bool
   initial_value: "false"
-- id: action_sent
-  type: bool
-  initial_value: "false"
-- id: update_from_em
-  type: bool
-  initial_value: "false"
-- id: last_ac_state
-  type: bool
-  initial_value: "false"
-- id: updates
-  type: int
-  initial_value: "0"
 
 button:
 - platform: template
