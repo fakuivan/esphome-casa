@@ -73,5 +73,18 @@ class UpdateChannelGuard {
   operator bool() const { return has_update; }
   bool has_update = false;
 };
+
+template <typename F, typename Ret, typename... Args>
+std::function<Ret(Args...)> returns_func(Ret (F::*)(Args...) const);
+
+template <typename F, typename Ret, typename... Args>
+std::function<Ret(Args...)> returns_func(Ret (F::*)(Args...));
+
+template <typename L, typename F = decltype(returns_func(&L::operator()))>
+F make_function_from_lambda(L &&lambda) {
+  F func{lambda};
+  return func;
+}
+
 }  // namespace utils
 }  // namespace fk_esphome
