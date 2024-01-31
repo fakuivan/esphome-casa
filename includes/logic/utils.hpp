@@ -15,11 +15,11 @@ class UpdateChannel {
   using update_func_t_ = update_func_t<Args...>;
   UpdateChannel(update_func_t_ &&update_func) : update_func(update_func) {}
 
-  bool operator()(Args &&...args) {
+  // undo && and std::forward for now
+  bool operator()(Args... args) {
     bool last_update_not_handled = waiting_for_response;
     waiting_for_response = true;
-    update_func([this]() { this->waiting_for_response = false; },
-                std::forward<Args>(args)...);
+    update_func([this]() { this->waiting_for_response = false; }, (args)...);
     return last_update_not_handled;
   }
 
