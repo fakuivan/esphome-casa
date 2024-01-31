@@ -74,6 +74,8 @@ class UpdateChannelGuard {
   bool has_update = false;
 };
 
+// The following was taken from https://stackoverflow.com/a/6512387
+
 template <typename F, typename Ret, typename... Args>
 std::function<Ret(Args...)> returns_func(Ret (F::*)(Args...) const);
 
