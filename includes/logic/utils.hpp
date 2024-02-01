@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <memory>
 
 namespace fk_esphome {
 namespace utils {
@@ -13,13 +14,14 @@ template <typename... Args>
 class UpdateChannel {
  public:
   using update_func_t_ = update_func_t<Args...>;
-  UpdateChannel(update_func_t_ &&update_func) : update_func(update_func) {}
+  UpdateChannel(update_func_t_ &&update_func)
+      : update_func(std::make_shared(std::move(update_func))) {}
 
   // undo && and std::forward for now
   bool operator()(Args... args) {
     bool last_update_not_handled = waiting_for_response;
     waiting_for_response = true;
-    update_func([this]() { this->waiting_for_response = false; }, (args)...);
+    (*update_func)([this]() { this->waiting_for_response = false; }, (args)...);
     return last_update_not_handled;
   }
 
@@ -39,14 +41,23 @@ class UpdateChannel {
     return true;
   }
 
+  UpdateChannel(const UpdateChannel<Args...> &other)
+      : update_func(other.update_func), waiting_for_response(false) {}
+
  private:
-  update_func_t_ update_func;
+  std::shared_ptr<update_func_t_> update_func;
   bool waiting_for_response = false;
 };
 
 template <typename... Args>
 UpdateChannel<Args...> make_update_channel(update_func_t<Args...> &&func) {
   return UpdateChannel<Args...>(std::forward<update_func_t<Args...>>(func));
+}
+
+template <typename... Args>
+UpdateChannel<Args...> make_update_channel(
+    const UpdateChannel<Args...> &other) {
+  return UpdateChannel<Args...>(other);
 }
 
 template <typename F, typename... Args>
