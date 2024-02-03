@@ -77,10 +77,13 @@ channel_for_lambda<L> make_update_channel(L &&lambda) {
 }
 
 class UpdateChannelGuard {
+ public:
   template <typename... Args>
   UpdateChannelGuard(UpdateChannel<Args...> &chann)
       : has_update(chann.check_update()) {}
   operator bool() const { return has_update; }
+
+ private:
   bool has_update = false;
 };
 
