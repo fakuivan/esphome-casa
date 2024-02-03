@@ -65,6 +65,7 @@ class SingleDepthBinaryActionQueue {
   }
 
   void toggle() {
+    binary_state = !binary_state;
     if (advance(state, STATE::DONE, STATE::SINGLE_TOGGLE)) {
       send_action(expected_action());
       return;
@@ -83,7 +84,17 @@ class SingleDepthBinaryActionQueue {
     send_state_(turn_on);
   }
   bool expected_action() const {
-    if (state == STATE::DOUBLE_TOGGLE) {
+    // Double toggle and done:
+    // off -> on -> off
+    // ^      ^     ^ we're here
+    // |      next state update
+    // current state
+    //
+    // Single toggle:
+    //        on -> off
+    //        ^     ^ we're here, expecting the state to reach where we are
+    //        current state
+    if (state == STATE::SINGLE_TOGGLE) {
       return binary_state;
     }
     return !binary_state;
