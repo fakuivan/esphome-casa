@@ -78,6 +78,47 @@ tuya:
       lambda: |-
         id(config_dp18) = x;
         power_meter::update_values($id_maps_dp_18, x);
+  - sensor_datapoint: 9
+    datapoint_type: bitmask
+    then:
+      lambda: |-
+        auto update_alarm = [x](uint8_t bit, BinarySensor *sensor) {
+          sensor->publish_state(x & (1 << bit));
+        };
+        update_alarm(3, id(leakage_problem));
+        update_alarm(8, id(overcurrent_problem));
+        update_alarm(10, id(overvoltage_problem));
+        update_alarm(11, id(undervoltage_problem));
+        id(any_problem).publish_state(x);
+        id(text_flags_sensor).publish_state(std::bitset<32>(x).to_string());
+
+binary_sensor:
+- platform: template
+  id: leakage_problem
+  name: Leakage overcurrent
+  device_class: problem
+- platform: template
+  id: overvoltage_problem
+  name: Overvoltage
+  device_class: problem
+- platform: template
+  id: overcurrent_problem
+  name: Overcurrent
+  device_class: problem
+- platform: template
+  id: undervoltage_problem
+  name: Undervoltage
+  device_class: problem
+- platform: template
+  id: any_problem
+  name: Tripped
+  device_class: problem
+
+text_sensor:
+- platform: template
+  id: text_flags_sensor
+  name: Alert flags
+  entity_category: diagnostic
 
 script:
 - id: set_config_dp
@@ -152,8 +193,6 @@ script:
       dp_18: false
       enabled: !lambda return enabled;
       set_threshold: false
-
-
 
 switch:
 - platform: "tuya"

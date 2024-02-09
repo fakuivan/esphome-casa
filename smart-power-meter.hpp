@@ -1,6 +1,7 @@
 #pragma once
 #include <tuple>
 #include <unordered_map>
+#include <bitset>
 
 namespace power_meter {
 
