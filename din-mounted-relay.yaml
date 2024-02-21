@@ -4,7 +4,7 @@ esphome:
 
 substitutions:
   id_relay_inner: relay_inner
-  id_relay: relay
+  id_em: em_1
 
 packages:
   basic: !include
@@ -15,8 +15,8 @@ packages:
       <<: !secret din_mounted_relay_params
       ap_ssid: Din-Mounted-Relay
   more_debug_lt: !include includes/more_debug_libretiny.yaml
-  energy_management: !include
-    file: includes/logic/energy_saving_and_load_shedding.yaml
+  em_relay: !include
+    file: includes/logic/energy_management/relay.yaml
 
 bk72xx:
   board: generic-bk7231t-qfn32-tuya
