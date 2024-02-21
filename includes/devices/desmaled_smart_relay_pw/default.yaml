@@ -1,0 +1,71 @@
+esphome:
+  on_boot:
+    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
+  - priority: 600
+    then:
+      if:
+        condition:
+          switch.is_on: $id_relay_inner
+        then:
+          light.turn_on: $id_status_light
+
+bk72xx:
+  board: cb2s
+
+substitutions:
+  id_relay_inner: relay
+  id_relay: relay
+  id_status_light: light_status
+  id_button: button_1
+
+binary_sensor:
+- platform: gpio
+  id: $id_button
+  name: Button
+  pin:
+    number: P7
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press:
+  - switch.toggle: $id_relay
+
+switch:
+- platform: gpio
+  id: $id_relay_inner
+  internal: True
+  pin: P24
+  restore_mode: RESTORE_DEFAULT_OFF
+  on_turn_on:
+    light.turn_on: $id_status_light
+  on_turn_off:
+    light.turn_off: $id_status_light
+
+light:
+- platform: status_led
+  id: $id_status_light
+  pin:
+    number: P8
+    inverted: true
+
+uart:
+  id: uart_bus
+  tx_pin: P11
+  rx_pin: P10
+  baud_rate: 4800
+  stop_bits: 1
+
+sensor:
+- platform: bl0942
+  update_interval: 5s
+  uart_id: uart_bus
+  current:
+    name: Current
+  voltage:
+    name: Voltage
+  power:
+    name: Power
+  energy:
+    name: Energy
+  frequency:
+    name: Frequency
+    accuracy_decimals: 2

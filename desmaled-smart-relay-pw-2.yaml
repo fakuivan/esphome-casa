@@ -1,0 +1,20 @@
+esphome:
+  name: desmaled-smart-relay-pw-2
+  friendly_name: desmaled_smart_relay_pw_2
+
+substitutions:
+  id_relay_inner: relay_inner
+  id_em: em_1
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret desmaled_smart_relay_pw_2_params
+      ap_ssid: Desmaled-Smart-Relay-Pw-2
+  em_relay: !include
+    file: includes/logic/energy_management/relay.yaml
+  device: !include
+    file: includes/devices/desmaled_smart_relay_pw/default.yaml
