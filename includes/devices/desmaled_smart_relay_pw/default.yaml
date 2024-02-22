@@ -15,6 +15,7 @@ bk72xx:
 substitutions:
   id_relay_inner: relay
   id_relay: relay
+  relay_internal: "False"
   id_status_light: light_status
   id_button: button_1
 
@@ -32,7 +33,8 @@ binary_sensor:
 switch:
 - platform: gpio
   id: $id_relay_inner
-  internal: True
+  name: Relay
+  internal: $relay_internal
   pin: P24
   restore_mode: RESTORE_DEFAULT_OFF
   on_turn_on:

@@ -5,6 +5,7 @@ esphome:
 substitutions:
   id_relay_inner: relay_inner
   id_em: em_1
+  relay_internal: "True"
 
 packages:
   basic: !include
