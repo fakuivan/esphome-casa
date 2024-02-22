@@ -1,19 +1,14 @@
 esphome:
-  on_boot:
-    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-  - priority: 600
-    then:
-      if:
-        condition:
-          switch.is_on: $id_relay_inner
-        then:
-          light.turn_on: light_status
   name: alic-smart-plug-2
   friendly_name: alic_smart_plug_2
 
 substitutions:
   id_relay_inner: relay_inner
   id_em: em_1
+  relay_internal: "True"
+  pw_calibration_current_mult: "0.43612"
+  pw_calibration_voltage_div: "781"
+  pw_calibration_current_resistor: 0.001163 ohm
 
 packages:
   basic: !include
@@ -25,64 +20,5 @@ packages:
       ap_ssid: Alic-Smart-Plug-2
   em_relay: !include
     file: includes/logic/energy_management/relay.yaml
-
-bk72xx:
-  board: cb2s
-
-sensor:
-- platform: hlw8012
-  model: BL0937
-  cf_pin:
-    number: P24
-    inverted: true
-  cf1_pin:
-    number: P26
-    inverted: true
-  sel_pin:
-    number: P10
-    inverted: true
-  current:
-    name: Current
-    filters:
-    # Calibrated from 1
-      multiply: 0.43612
-  voltage:
-    name: Voltage
-  power:
-    name: Power
-  energy:
-    name: Energy
-  # in principle it's 800, but it should calibrate for about 232/237
-  voltage_divider: 781
-  # Calibrated from 1mOhm
-  current_resistor: 0.001163 ohm
-  update_interval: 5s
-  change_mode_every: 1
-
-binary_sensor:
-- platform: gpio
-  name: Button
-  pin:
-    number: P6
-    inverted: true
-    mode: INPUT_PULLUP
-  on_press:
-    switch.toggle: $id_relay
-
-light:
-- platform: status_led
-  id: light_status
-  pin:
-    number: P7
-    inverted: true
-
-switch:
-- platform: gpio
-  id: $id_relay_inner
-  internal: True
-  pin: P8
-  restore_mode: RESTORE_DEFAULT_OFF
-  on_turn_on:
-    light.turn_on: light_status
-  on_turn_off:
-    light.turn_off: light_status
+  device: !include
+    file: includes/devices/alic_smart_plug/default.yaml

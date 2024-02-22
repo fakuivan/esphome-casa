@@ -1,0 +1,80 @@
+esphome:
+  on_boot:
+    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
+  - priority: 600
+    then:
+      if:
+        condition:
+          switch.is_on: $id_relay_inner
+        then:
+          light.turn_on: $id_status_light
+
+bk72xx:
+  board: cb2s
+
+substitutions:
+  id_relay_inner: relay
+  id_relay: relay
+  relay_internal: "False"
+  id_status_light: light_status
+  id_button: button_1
+
+binary_sensor:
+- platform: gpio
+  id: $id_button
+  name: Button
+  pin:
+    number: P6
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press:
+    switch.toggle: $id_relay
+
+switch:
+- platform: gpio
+  id: $id_relay_inner
+  name: Relay
+  internal: $relay_internal
+  pin: P8
+  restore_mode: RESTORE_DEFAULT_OFF
+  on_turn_on:
+    light.turn_on: $id_status_light
+  on_turn_off:
+    light.turn_off: $id_status_light
+
+light:
+- platform: status_led
+  id: $id_status_light
+  pin:
+    number: P7
+    inverted: true
+
+sensor:
+- platform: hlw8012
+  model: BL0937
+  cf_pin:
+    number: P24
+    inverted: true
+  cf1_pin:
+    number: P26
+    inverted: true
+  sel_pin:
+    number: P10
+    inverted: true
+  current:
+    name: Current
+    filters:
+    # Calibrated from 1
+      multiply: $pw_calibration_current_mult
+  voltage:
+    name: Voltage
+  power:
+    name: Power
+  energy:
+    name: Energy
+  # in principle it's 800, but it should calibrate for about 243/238
+  voltage_divider: $pw_calibration_voltage_div
+  # Calibrated from 1mOhm
+  current_resistor: $pw_calibration_current_resistor
+  update_interval: 5s
+  change_mode_every: 1
