@@ -38,16 +38,22 @@ sensor:
     name: Output apparent power
     state_class: measurement
     icon: mdi:lightbulb-on-outline
+    id: output_apparent_power
     on_value:
-      then:
-        sensor.template.publish:
-          id: output_current
-          state: !lambda return x/id(output_voltage).state;
+      lambda: |-
+        const auto apparent_power = x;
+        const auto voltage = id(output_voltage).state;
+        id(output_current).publish_state(apparent_power/voltage);
   ac_output_active_power:
     name: Output active power
     state_class: measurement
     id: output_active_power
     icon: mdi:lightbulb-on-outline
+    on_value:
+      lambda: |-
+        const auto apparent_power = id(output_apparent_power).state;
+        const auto active_power = x;
+        id(output_reactive_power).publish_state(sqrt(apparent_power*apparent_power - active_power*active_power));
   output_load_percent:
     name: Output load percent
     state_class: measurement
@@ -97,6 +103,14 @@ sensor:
   device_class: current
   unit_of_measurement: A
   accuracy_decimals: 3
+
+- platform: template
+  name: Output reactive power
+  id: output_reactive_power
+  state_class: measurement
+  device_class: reactive_power
+  unit_of_measurement: var
+  accuracy_decimals: 0
 
 - platform: template
   name: Battery discharging power

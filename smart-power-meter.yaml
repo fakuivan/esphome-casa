@@ -60,6 +60,7 @@ tuya:
         id(current).publish_state(curr);
         id(power).publish_state(active_power);
         id(apparent_power).publish_state(ap_power);
+        id(reactive_power).publish_state(sqrt(ap_power*ap_power - active_power*active_power));
         id(power_factor).publish_state(ap_power != 0. ? active_power/ap_power : 0.);
   - sensor_datapoint: $dp_clear
     datapoint_type: bool
@@ -325,6 +326,14 @@ sensor:
   state_class: measurement
   device_class: apparent_power
   unit_of_measurement: VA
+  accuracy_decimals: 2
+
+- name: "Reactive power"
+  platform: template
+  id: reactive_power
+  state_class: measurement
+  device_class: reactive_power
+  unit_of_measurement: var
   accuracy_decimals: 2
 
 - name: "Power factor"
