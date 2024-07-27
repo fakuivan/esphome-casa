@@ -28,7 +28,7 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    switch.toggle: $id_relay
+  - switch.toggle: $id_relay
 
 switch:
 - platform: gpio

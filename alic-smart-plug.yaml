@@ -27,18 +27,75 @@ time:
   timezone: "GMT+3"
   on_time:
   - then:
-      if:
-        condition:
-        - switch.is_on: restart_at_midnight
-        - switch.is_on: $id_relay
-        then:
-        - switch.turn_off: $id_relay
-        - delay: 30s
-        - switch.turn_on: $id_relay
-        - switch.turn_off: restart_at_midnight
+      script.execute:
+        id: maybe_restart
+        reset_flag: true
     seconds: 30
     minutes: 59
     hours: 23
+    # we can do with showing time in 12 hour format to avoid
+    # waiting more than 12 hours, just reset it back to 24
+    # hour format at 00
+  - then:
+      script.execute:
+        id: maybe_restart
+        reset_flag: false
+    seconds: 30
+    minutes: 59
+    hours: 11
+
+script:
+- id: blink
+  parameters:
+    times: uint
+  mode: parallel
+  then:
+    repeat:
+      count: !lambda return times*2;
+      then:
+      - light.toggle: $id_status_light
+      - delay: 250ms
+
+- id: maybe_restart
+  parameters:
+    reset_flag: bool
+  then:
+    if:
+      condition:
+      - switch.is_on: restart_at_midnight
+      - switch.is_on: $id_relay
+      then:
+      - switch.turn_off: $id_relay
+      - delay: 30s
+      - switch.turn_on: $id_relay
+      - if:
+          condition:
+            lambda: return reset_flag;
+          then:
+            switch.turn_off: restart_at_midnight
+
+binary_sensor:
+- id: !extend $id_button
+  # clear out the on_press action
+  on_press:
+    then: []
+  on_multi_click:
+  - timing:
+      - ON for at most 350ms
+      - OFF for at most 350ms
+      - ON for at most 350ms
+      - OFF for at least 50ms
+    then:
+      switch.toggle: $id_relay
+  - timing:
+      - ON for at most 350ms
+      - OFF for at least 351ms
+    then:
+      - script.execute:
+          id: blink
+          times: !lambda |
+            return id(restart_at_midnight).state ? 1 : 2;
+      - switch.turn_on: restart_at_midnight
 
 switch:
 - platform: template
