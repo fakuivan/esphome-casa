@@ -156,6 +156,18 @@ binary_sensor:
   warning_line_fail:
     name: Line failed warning
     device_class: problem
+    on_state:
+    - if:
+        condition:
+          lambda: return x;
+        then:
+          script.execute:
+            id: keep_playing
+            time_between_ms: 5000
+            tune: two_short:d=4,o=5,b=100:16e6,16e6
+        else:
+          script.execute: stop_playing
+
   warning_power_loss:
     name: Power loss warning
     device_class: problem
@@ -220,11 +232,59 @@ script:
       id(batt_charge_power).publish_state(charge_pow);
       id(batt_discharge_power).publish_state(discharge_pow);
       id(est_grid_power).publish_state(id(output_active_power).state + charge_pow - discharge_pow - id(pv_power).state);
+- id: keep_playing
+  parameters:
+    time_between_ms: uint32_t
+    tune: string
+  mode: single
+  then:
+  - globals.set:
+      id: keep_playing__time_between_ms
+      value: !lambda return time_between_ms;
+  - globals.set:
+      id: keep_playing__tune
+      value: !lambda return tune;
+  - rtttl.play:
+      id: speaker_rtttl
+      rtttl: !lambda return id(keep_playing__tune);
+  - while:
+      condition:
+        lambda: return true;
+      then:
+      - delay:
+          days: 1
+- id: on_finished_playback
+  then:
+    if:
+      condition:
+      - script.is_running: keep_playing
+      then:
+      - delay: !lambda return id(keep_playing__time_between_ms);
+      - rtttl.play: !lambda return id(keep_playing__tune);
+- id: stop_playing
+  mode: single
+  then:
+  - script.stop: on_finished_playback
+  - script.stop: keep_playing
+  - rtttl.stop:
+      id: speaker_rtttl
+
+globals:
+- type: uint32_t
+  id: keep_playing__time_between_ms
+- type: std::string
+  id: keep_playing__tune
+
 
 # Use dofferent UART since UART0 is being used by the inverter
 logger:
   # UART1 can only send messages, RX is disabled
   hardware_uart: UART1
+
+output:
+- platform: esp8266_pwm
+  pin: GPIO15
+  id: speaker_pwm
 
 uart:
 - id: uart_bus
@@ -235,3 +295,9 @@ uart:
 pipsolar:
 - uart_id: uart_bus
   id: inverter0
+
+rtttl:
+  output: speaker_pwm
+  id: speaker_rtttl
+  on_finished_playback:
+    script.execute: on_finished_playback
