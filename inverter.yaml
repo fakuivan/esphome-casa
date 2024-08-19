@@ -83,6 +83,13 @@ sensor:
     name: Battery discharging current
     state_class: measurement
     id: batt_discharging_current
+  current_max_ac_charging_current:
+    name: Max DC current from AC charger
+    state_class: measurement
+    internal: False
+  battery_under_voltage:
+    name: Battery cutoff voltage
+    state_class: measurement
 
 - platform: template
   name: Output current
@@ -168,6 +175,10 @@ binary_sensor:
         else:
           script.execute: stop_playing
 
+  charging_status:
+    name: Battery charging
+  charging_to_floating_mode:
+    name: Battery charging to floating voltage
   warning_power_loss:
     name: Power loss warning
     device_class: problem
@@ -282,6 +293,13 @@ logger:
   hardware_uart: UART1
 
 output:
+- platform: pipsolar
+  pipsolar_id: inverter0
+  current_max_ac_charging_current:
+   #name: Max battery charging current from grid
+   id: max_ac_charging_current
+   possible_values: [2, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
 - platform: esp8266_pwm
   pin: GPIO15
   id: speaker_pwm
