@@ -1,18 +1,4 @@
 esphome:
-  on_boot:
-    # https://esphome.io/components/esphome.html#on-boot after 600 switches are restored
-  - priority: 600
-    then:
-    - if:
-        condition:
-          switch.is_on: switch_1
-        then:
-          switch.turn_on: switch_1_inner
-    - if:
-        condition:
-          switch.is_on: switch_2
-        then:
-          switch.turn_on: switch_2_inner
   name: macroled-mini-relay-1
   friendly_name: macroled_mini_relay_1
 
@@ -62,32 +48,14 @@ binary_sensor:
   - switch.toggle: switch_2
 
 switch:
-- platform: template
-  id: switch_1
-  name: Relay 1
-  optimistic: True
-  on_turn_on:
-    switch.turn_on: switch_1_inner
-  on_turn_off:
-    switch.turn_off: switch_1_inner
-
 - platform: gpio
-  id: switch_1_inner
+  id: switch_1
   name: Relay 1
   pin: P8
   restore_mode: RESTORE_DEFAULT_OFF
 
-- platform: template
-  id: switch_2
-  name: Relay 2
-  optimistic: True
-  on_turn_on:
-    switch.turn_on: switch_2_inner
-  on_turn_off:
-    switch.turn_off: switch_2_inner
-
 - platform: gpio
-  id: switch_2_inner
+  id: switch_2
   name: Relay 2
   pin: P7
   restore_mode: RESTORE_DEFAULT_OFF
