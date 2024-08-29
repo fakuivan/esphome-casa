@@ -1,0 +1,108 @@
+esphome:
+  name: hacked-solar-movement-sensor
+  friendly_name: hacked_solar_movement_sensor
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret hacked_solar_movement_sensor_params
+      ap_ssid: Hacked-Solar-Movement-Sensor
+
+esp8266:
+  board: esp01_1m
+
+switch:
+- platform: gpio
+  internal: True
+  id: allow_reset
+  pin:
+    number: GPIO01
+    mode: output
+    inverted: False
+  restore_mode: ALWAYS_OFF
+
+button:
+- platform: template
+  id: pir_button
+  name: PIR button
+  on_press:
+  - output.turn_on: pir_button_output
+  - delay: 20ms
+  - output.turn_off: pir_button_output
+- platform: template
+  id: deep_sleep_button
+  name: Enter deep sleep for 10 minutes
+  on_press:
+  - switch.turn_on: allow_reset
+  - deep_sleep.enter:
+      sleep_duration: 10min
+
+output:
+- platform: gpio
+  id: pir_button_output
+  pin:
+    number: GPIO00
+    mode: output
+    inverted: True
+- platform: esp8266_pwm
+  pin: GPIO04
+  frequency: 1000 Hz
+  id: light_pwm
+
+light:
+- platform: monochromatic
+  output: light_pwm
+  name: "Light"
+
+sensor:
+- platform: adc
+  pin: A0
+  id: input_voltage
+  name: Battery voltage
+  samples: 100
+  update_interval: 5s
+  raw: True
+  filters:
+  - offset: 2.313
+  - multiply: 0.005528
+  on_value_range: 
+    below: 2.7
+    then:
+    - switch.turn_on: allow_reset
+    - deep_sleep.enter:
+
+binary_sensor:
+- platform: gpio
+  id: main_button
+  name: Button
+  pin:
+    number: GPIO02
+    mode: input
+    inverted: True
+- platform: gpio
+  id: motion
+  name: Motion
+  device_class: motion
+  pin:
+    number: GPIO03
+    mode: input
+    inverted: False
+- platform: template
+  id: motion_wakeup
+  name: Motion wakeup
+  lambda: |
+    return id(motion_wakeup).has_state() ? id(motion_wakeup).state : id(motion).state;
+- platform: template
+  id: main_button_wakeup
+  name: Button wakeup
+  lambda: |
+    return id(main_button_wakeup).has_state() ? id(main_button_wakeup).state : id(main_button).state;
+
+# disable logging via uart
+logger:
+  baud_rate: 0
+
+deep_sleep:
