@@ -1,0 +1,152 @@
+esphome:
+  on_boot:
+  # setup_priority::HARDWARE - 1
+  - priority: 799
+    then:
+    - lambda: |-
+        if (id(pir_output).state) {
+          id(pir_state) = pir_states::ON;
+          id(pir_motion_wakeup) = true;
+          id(pir_motion).publish_state(true);
+        }
+
+globals:
+- !include
+  file: ../../hacks/type_for_globals.yaml
+  vars:
+    dummy_id: __pir_states__
+    globals_type: |-
+      enum class pir_states {
+        UNKNOWN,
+        // maybe add a DISCOVERING state
+        TURNING_ON_EXPECTING_OFF,
+        TURNING_ON_EXPECTING_ON,
+        TURNING_OFF_EXPECTING_OFF,
+        ON,
+        OFF
+      };
+      const char* pir_states_to_str(pir_states state) {
+        switch (state) {
+          case pir_states::UNKNOWN: return "UNKNOWN";
+          case pir_states::TURNING_ON_EXPECTING_OFF: return "TURNING_ON_EXPECTING_OFF";
+          case pir_states::TURNING_ON_EXPECTING_ON: return "TURNING_ON_EXPECTING_ON";
+          case pir_states::TURNING_OFF_EXPECTING_OFF: return "TURNING_OFF_EXPECTING_OFF";
+          case pir_states::ON: return "ON";
+          case pir_states::OFF: return "OFF";
+        }
+        return "";
+      }
+- id: pir_state
+  type: pir_states
+  initial_value: pir_states::UNKNOWN
+- id: pir_motion_wakeup
+  initial_value: "false"
+  type: bool
+
+script:
+- id: pir_turn_on_off
+  parameters:
+    turn_on: bool
+  mode: single
+  then:
+  - if:
+      condition:
+        lambda: 'return turn_on && id(pir_state) == pir_states::OFF;'
+      then:
+      - lambda: 'id(pir_state) = pir_states::TURNING_ON_EXPECTING_ON;'
+      - script.execute: pir_button_push
+      - script.wait: pir_button_push
+  - if:
+      condition:
+        lambda: 'return !turn_on && id(pir_state) == pir_states::ON;'
+      then:
+      - lambda: 'id(pir_state) = id(pir_output).state ? pir_states::TURNING_OFF_EXPECTING_OFF : pir_states::OFF;'
+      - script.execute: pir_button_push
+      - script.wait: pir_button_push
+  - if:
+      condition:
+      - lambda: 'return id(pir_state) == pir_states::UNKNOWN;'
+      then:
+      - if:
+          condition:
+            lambda: 'return id(pir_output).state;'
+          then:
+          - if:
+              condition:
+                lambda: 'return turn_on;'
+              then:
+              # already on since the output is on
+              - lambda: 'id(pir_state) = pir_states::ON;'
+              else:
+              - lambda: 'id(pir_state) = pir_states::TURNING_ON_EXPECTING_OFF;'
+              - script.execute: pir_button_push
+              - script.wait: pir_button_push
+          else:
+          # we don't know if the pir is on or off, toggle it and find out
+          - lambda: |- 
+              id(pir_state) = turn_on ? pir_states::TURNING_ON_EXPECTING_ON : pir_states::OFF;
+          - script.execute: pir_button_push
+          - script.wait: pir_button_push
+          - delay: 20ms
+          - if:
+              condition:
+                # check if we advanced to the wrong state with a single toggle
+                lambda: 'return id(pir_state) != (turn_on ? pir_states::TURNING_ON_EXPECTING_OFF : pir_states::OFF);'
+              then:
+                # we advanced to the wrong state, toggle back
+              - lambda: |-
+                  if (turn_on) {
+                    id(pir_state) = pir_states::TURNING_ON_EXPECTING_ON;
+                  } else {
+                    id(pir_state) = pir_states::TURNING_OFF_EXPECTING_OFF;
+                  }
+              - script.execute: pir_button_push
+              - script.wait: pir_button_push
+
+- id: pir_button_push
+  mode: single
+  then:
+    - output.turn_on: pir_button
+    - delay: 20ms
+    - output.turn_off: pir_button
+
+output:
+- platform: gpio
+  id: pir_button
+  pin:
+    number: GPIO00
+    mode: output
+    inverted: True
+
+binary_sensor:
+- platform: gpio
+  id: pir_output
+  entity_category: diagnostic
+  pin:
+    number: GPIO03
+    mode: input
+    inverted: False
+  on_state:
+    lambda: |-
+      pir_states &pir_state_ = id(pir_state);
+      switch (pir_state_) {
+        case pir_states::ON: {
+          id(pir_motion).publish_state(x);
+        } break;
+        case pir_states::TURNING_ON_EXPECTING_OFF: {
+          pir_state_ = x ? pir_states::UNKNOWN : pir_states::ON;
+        } break;
+        case pir_states::TURNING_ON_EXPECTING_ON: {
+          pir_state_ = x ? pir_states::TURNING_ON_EXPECTING_OFF : pir_states::UNKNOWN;
+        } break;
+        case pir_states::TURNING_OFF_EXPECTING_OFF: {
+          pir_state_ = x ? pir_states::TURNING_ON_EXPECTING_OFF : pir_states::UNKNOWN;
+        } break;
+        case pir_states::OFF: {
+          pir_state_ = pir_states::UNKNOWN;
+        } break;
+      }
+- platform: template
+  id: pir_motion
+  name: Motion
+  device_class: motion

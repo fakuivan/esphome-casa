@@ -1,0 +1,11 @@
+# linearize using a template output
+output:
+- platform: esp8266_pwm
+  pin: GPIO04
+  frequency: 1000 Hz
+  id: light_pwm
+
+light:
+- platform: monochromatic
+  output: light_pwm
+  name: "Light"
