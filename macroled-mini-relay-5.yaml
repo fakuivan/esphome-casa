@@ -23,9 +23,9 @@ binary_sensor:
     inverted: true
     mode: INPUT_PULLUP
   on_press:
-    switch.turn_on: switch_1
+    lambda: "id(switch_1_combination).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
   on_release:
-    switch.turn_off: switch_1
+    lambda: "!id(switch_1_combination).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
   filters:
     delayed_on_off: 20ms
 - platform: gpio
@@ -62,6 +62,13 @@ switch:
   name: Relay 2
   pin: P7
   restore_mode: RESTORE_DEFAULT_OFF
+- id: switch_1_combination
+  name: Switch 1 Combination
+  optimistic: True
+  on_turn_off:
+    lambda: "!id(binary_onoff_1).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
+  on_turn_on:
+    lambda: "id(binary_onoff_1).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
 
 status_led:
   pin:
