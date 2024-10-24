@@ -10,6 +10,12 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret macroled_mini_relay_5_params
       ap_ssid: Macroled-Mini-Relay-5
+  combo_binary_onoff_1: !include
+    file: includes/logic/combo_switch.yaml
+    vars:
+      id_combo_switch: switch_1_combination
+      id_local_switch: switch_1
+      id_local_sensor: binary_onoff_1
 
 bk72xx:
   board: generic-bk7231n-qfn32-tuya
@@ -22,10 +28,6 @@ binary_sensor:
     number: P24
     inverted: true
     mode: INPUT_PULLUP
-  on_press:
-    lambda: "id(switch_1_combination).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
-  on_release:
-    lambda: "!id(switch_1_combination).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
   filters:
     delayed_on_off: 20ms
 - platform: gpio
@@ -62,13 +64,8 @@ switch:
   name: Relay 2
   pin: P7
   restore_mode: RESTORE_DEFAULT_OFF
-- id: switch_1_combination
+- id: !extend switch_1_combination
   name: Switch 1 Combination
-  optimistic: True
-  on_turn_off:
-    lambda: "!id(binary_onoff_1).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
-  on_turn_on:
-    lambda: "id(binary_onoff_1).state ? id(switch_1).turn_on() : id(switch_1).turn_off();"
 
 status_led:
   pin:
