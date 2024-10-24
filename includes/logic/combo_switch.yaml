@@ -1,0 +1,20 @@
+substitutions: {}
+  #id_combo_switch: combo_switch
+  #id_local_switch: local_switch
+  #id_local_sensor: local_sensor
+
+switch:
+- platform: template
+  id: $id_combo_switch
+  optimistic: True
+  on_turn_off:
+  - lambda: "!id($id_local_sensor).state ? id($id_local_switch).turn_on() : id($id_local_switch).turn_off();"
+  on_turn_on:
+  - lambda: "id($id_local_sensor).state ? id($id_local_switch).turn_on() : id($id_local_switch).turn_off();"
+
+binary_sensor:
+- id: !extend $id_local_sensor
+  on_release:
+  - lambda: "!id($id_combo_switch).state ? id($id_local_switch).turn_on() : id($id_local_switch).turn_off();"
+  on_press:
+  - lambda: "id($id_combo_switch).state ? id($id_local_switch).turn_on() : id($id_local_switch).turn_off();"
