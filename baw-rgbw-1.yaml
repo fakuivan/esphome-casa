@@ -1,0 +1,52 @@
+esphome:
+  name: baw-rgbw-1
+  friendly_name: baw_rgbw_1
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret baw_rgbw_1_params
+      ap_ssid: Baw-Rgbw-1
+  more_debug_lt: !include includes/more_debug_libretiny.yaml
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+bp5758d:
+  clock_pin: P9
+  data_pin: P6
+
+output:
+- platform: bp5758d
+  id: output_red
+  channel: 2
+  current: 10
+- platform: bp5758d
+  id: output_green
+  channel: 3
+  current: 10
+- platform: bp5758d
+  id: output_blue
+  channel: 1
+  current: 10
+- platform: bp5758d
+  id: output_warm
+  channel: 4
+  current: 25
+
+light:
+- platform: rgbw
+  id: light_rgbw
+  name: Light
+  red: output_red
+  green: output_green
+  blue: output_blue
+  white: output_warm
+
+sensor:
+- platform: internal_temperature
+  name: Internal Temperature
+  

@@ -1,0 +1,16 @@
+esphome:
+  name: baw-smart-relay-pw-1
+  friendly_name: baw_smart_relay_pw_1
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret baw_smart_relay_pw_1_params
+      ap_ssid: Baw-Smart-Relay-Pw-1
+  more_debug_lt: !include includes/more_debug_libretiny.yaml
+
+bk72xx:
+  board: cb2s
