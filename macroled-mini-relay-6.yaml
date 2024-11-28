@@ -27,7 +27,7 @@ binary_sensor:
   on_release:
     switch.turn_off: switch_1
   filters:
-    delayed_on_off: 40ms
+    delayed_on_off: 100ms
 - platform: gpio
   id: binary_onoff_2
   name: Switch 2
