@@ -1,6 +1,8 @@
 esphome:
   name: esp32-wild-2
   friendly_name: esp32_wild_2
+  libraries:
+  - "etlcpp/Embedded Template Library@^20.39.4"
 
 esp32:
   board: nodemcu-32s
@@ -15,6 +17,20 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret esp32_wild_2_params
       ap_ssid: Esp32-Wild-2 Fallback Hotspot
+  ping_include: !include
+    file: includes/hacks/include_for_globals.yaml
+    vars:
+      include_dummy_id: __dummy_id_ping_client__
+      include_file: components/ping_client/ping_client.hpp
+      include_file_name: ping_client.hpp
+
+globals:
+- id: ping_to_bulb
+  type: std::shared_ptr<ping_client::Ping>
+  initial_value: |-
+    ping_client::make_copyable(
+      ping_client::make_ping(10000, network::IPAddress{192, 168, 122, 35})
+    )
 
 sensor:
 - platform: dht
@@ -24,3 +40,44 @@ sensor:
   humidity:
     name: Humidity
   update_interval: 60s
+
+interval:
+  id: ping_interval
+  interval: 1s
+  then:
+  - lambda: |-
+      if (!id(ping_to_bulb)) {
+        ESP_LOGE("main::ping_interval", "Ping class uninitialized, initializing");
+        return;
+      }
+      ESP_LOGD("main::ping_interval", "Ping loop called");
+      auto ping_result = id(ping_to_bulb)->ping(millis());
+      if (auto reply = etl::get_if<ping_client::PingReply>(&ping_result)) {
+        ESP_LOGD(
+          "main::ping_interval",
+          "Got ping reply with round trip time %u milliseconds",
+          reply->latency_ms
+        );
+        return;
+      }
+      auto errno_ = etl::get_if<ping_client::Errno>(&ping_result);
+      auto fatal = etl::get_if<ping_client::Fatal>(&ping_result);
+      if (fatal) {
+        ESP_LOGE("main::ping_interval", "Got fatal error: %s", fatal->reason.c_str());
+      }
+      if (errno_) {
+        ESP_LOGE("main::ping_interval", "Got errno error: %s", strerror(errno_->code));
+      }
+      if (errno_ || fatal) {
+        ESP_LOGE("main::ping_interval", "Resetting ping component");
+        id(ping_to_bulb) = {};
+        return;
+      }
+      if (etl::holds_alternative<ping_client::Timeout>(ping_result)) {
+        ESP_LOGW("main::ping_interval", "Got timeout, sending another ping request");
+        return;
+      }
+      if (etl::holds_alternative<ping_client::Waiting>(ping_result)) {
+        ESP_LOGD("main::ping_interval", "Waiting for ping reply");
+        return;
+      }
