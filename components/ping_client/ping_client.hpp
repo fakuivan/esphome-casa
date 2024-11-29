@@ -12,7 +12,7 @@
 
 namespace ping_client {
 
-void set_socket_timeout(socket::Socket &socket_, int timeout) {
+int set_socket_timeout(socket::Socket &socket_, int timeout) {
   socket_.setsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 }
 
@@ -359,14 +359,9 @@ class Ping {
 
 etl::optional<Ping> make_ping(uint timeout, in_addr_t remote_address) {
   auto sock = socket::socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-  if (!sock) {
+  if (!sock || set_socket_timeout(*sock, timeout) == -1 ||
+      sock->setblocking(false) == -1) {
     return {};
-  }
-  set_socket_timeout(*sock, timeout);
-  if (sock->setblocking(false) == -1) {
-    if (errno != ECONNRESET) {
-      return {};
-    }
   }
   return Ping{std::move(sock), timeout, remote_address};
 }
