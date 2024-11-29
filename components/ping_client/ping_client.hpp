@@ -12,8 +12,11 @@
 
 namespace ping_client {
 
-int set_socket_timeout(socket::Socket &socket_, int timeout) {
-  socket_.setsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+int set_socket_timeout(socket::Socket &socket_, unsigned long timeout_ms) {
+  timeval timeout;
+  timeout.tv_sec = timeout_ms / 1000;
+  timeout.tv_usec = (timeout_ms % 1000) * 1000;
+  return socket_.setsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 }
 
 uint16_t random_id() {
