@@ -229,7 +229,7 @@ class Ping {
   uint16_t sequence = 0;
   uint16_t id;
   uint timeout;
-  uint last_send_time;
+  unsigned long last_send_time;
   in_addr_t remote_address;
   bool waiting = false;
 
@@ -315,7 +315,7 @@ class Ping {
 
  public:
   etl::variant<PingReply, Timeout, Waiting, Errno, Fatal> ping(
-      uint now_milliseconds) {
+      unsigned long now_milliseconds) {
     if (!waiting) {
       last_send_time = now_milliseconds;
       auto result = send_ping();
