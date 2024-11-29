@@ -363,7 +363,11 @@ etl::optional<Ping> make_ping(uint timeout, in_addr_t remote_address) {
     return {};
   }
   set_socket_timeout(*sock, timeout);
-
+  if (sock->setblocking(false) == -1) {
+    if (errno != ECONNRESET) {
+      return {};
+    }
+  }
   return Ping{std::move(sock), timeout, remote_address};
 }
 
