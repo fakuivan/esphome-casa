@@ -144,7 +144,7 @@ using recvfrom_truncated_return =
 
 // Reads the first bytes of an ipv4 packet and dumps the rest, next call to
 // recvfrom should start with a new packet. returns the total size of the
-// packet.
+// packet. Does not distinguish between fragmented and non-fragmented packets
 template <size_t PayloadSize, typename Addr, typename AddrComparator>
 recvfrom_truncated_return recvfrom_truncated(AddrComparator &&same_addr,
                                              socket::Socket &sock,
@@ -171,9 +171,6 @@ recvfrom_truncated_return recvfrom_truncated(AddrComparator &&same_addr,
 
   uint16_t packet_length_from_header = ntohs(IPH_LEN(&packet.header));
   assert(packet_length_from_header >= received);
-  if (IPH_OFFSET(&packet.header) != 0) {
-    return unexpected{Fatal{"Cannot handle fragmented packets"}};
-  }
 
   auto discard_error = recvfrom_discard(sock, std::move(same_addr), addr,
                                         packet_length_from_header - received,
@@ -297,6 +294,10 @@ class Ping {
                   "not configured for ipv4?"}};
       }
       assert(false);
+    }
+    if (IPH_OFFSET_BYTES(&packet.header) != 0 ||
+        (IPH_OFFSET(&packet.header) & IP_MF)) {
+      return Fatal{"Cannot handle fragmented packets"};
     }
     packet_len = read_result.value();
     if (addr.sin_addr.s_addr != remote_address) {
