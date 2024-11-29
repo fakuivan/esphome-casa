@@ -166,7 +166,7 @@ recvfrom_truncated_return recvfrom_truncated(AddrComparator &&same_addr,
   }
   assert(received == peek_size);
 
-  uint16_t packet_length_from_header = IPH_LEN(&packet.header);
+  uint16_t packet_length_from_header = ntohs(IPH_LEN(&packet.header));
   assert(packet_length_from_header >= received);
   if (IPH_OFFSET(&packet.header) != 0) {
     return unexpected{Fatal{"Cannot handle fragmented packets"}};
