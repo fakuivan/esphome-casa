@@ -28,9 +28,7 @@ globals:
 - id: ping_to_bulb
   type: std::shared_ptr<ping_client::Ping>
   initial_value: |-
-    ping_client::make_copyable(
-      ping_client::make_ping(10000, network::IPAddress{192, 168, 122, 35})
-    )
+    nullptr
 
 sensor:
 - platform: dht
@@ -48,9 +46,10 @@ interval:
   - lambda: |-
       if (!id(ping_to_bulb)) {
         ESP_LOGE("main::ping_interval", "Ping class uninitialized, initializing");
-        return;
+        id(ping_to_bulb) = ping_client::make_copyable(
+          ping_client::make_ping(10000, network::IPAddress{192, 168, 122, 35})
+        );
       }
-      ESP_LOGD("main::ping_interval", "Ping loop called");
       auto ping_result = id(ping_to_bulb)->ping(millis());
       if (auto reply = etl::get_if<ping_client::PingReply>(&ping_result)) {
         ESP_LOGD(
