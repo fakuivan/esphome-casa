@@ -325,7 +325,7 @@ class Ping {
       waiting = true;
       return {Waiting{}};
     }
-    if ((last_send_time + timeout) > now_milliseconds) {
+    if (now_milliseconds > (last_send_time + timeout)) {
       last_send_time = now_milliseconds;
       auto result = send_ping();
       if (result) {
@@ -338,7 +338,7 @@ class Ping {
          ping_result = listen_ping()) {
       if (etl::holds_alternative<Reply>(ping_result)) {
         waiting = false;
-        return PingReply{last_send_time - now_milliseconds};
+        return PingReply{now_milliseconds - last_send_time};
       }
       if (etl::holds_alternative<BadPacket>(ping_result) ||
           etl::holds_alternative<OtherPacket>(ping_result) ||
