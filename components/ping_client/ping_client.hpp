@@ -281,39 +281,22 @@ class Ping {
 
     sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
-    ssize_t packet_len;
     using packet_payload_type = ping_req_packet;
     ip_packet<sizeof(packet_payload_type)> packet;
-    // will it all be recieved in one single call?
 
-    auto read_result = recvfrom_truncated(
-        [](const sockaddr_in &addr1, const sockaddr_in &addr2) {
-          return addr1.sin_addr.s_addr == addr2.sin_addr.s_addr &&
-                 addr1.sin_family == addr2.sin_family;
-        },
-        *sock, packet, addr);
-    if (!read_result) {
-      auto error = read_result.error();
-      if (auto maybe_errno = etl::get_if<Errno>(&error)) {
-        if (maybe_errno->code == EWOULDBLOCK || maybe_errno->code == EAGAIN) {
-          return Waiting{};
-        }
-        return {std::move(*maybe_errno)};
+    ssize_t received =
+        sock->recvfrom(&packet, sizeof(packet),
+                       reinterpret_cast<sockaddr *>(&addr), &addr_len);
+    if (received < 0) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        return Waiting{};
       }
-      if (auto maybe_fatal = etl::get_if<Fatal>(&error)) {
-        return {std::move(*maybe_fatal)};
-      }
-      if (auto maybe_bad_address = etl::get_if<BadSourceAddress>(&error)) {
+      return Errno{errno};
+      if (addr_len != sizeof(addr)) {
         return {
             Fatal{"Got bad address size form recvfrom, maybe the socket was "
                   "not configured for ipv4?"}};
       }
-      assert(false);
-    }
-    // Early response sanity check
-    packet_len = read_result.value();
-    if (packet_len > sizeof(packet.raw_packet)) {
-      return BadPacket{};
     }
     // Get the IP header length, fail if the header length
     // doesn't make sense (larger or smaller than allowed)
@@ -321,9 +304,8 @@ class Ping {
     if (!maybe_header_length) {
       return BadPacket{};
     }
-    // Now that we have the header length we can filter more precisely
     const auto &header_length = *maybe_header_length;
-    if (packet_len != header_length + sizeof(packet_payload_type)) {
+    if (received != header_length + sizeof(packet_payload_type)) {
       return BadPacket{};
     }
     // Not sure if the api does this for us
@@ -343,7 +325,8 @@ class Ping {
     packet_payload_type ping_packet;
     assert(bit_cast_to(packet.raw_packet, ping_packet, header_length));
     // is checking packet type in ip header for icmp required?
-    if (ping_packet.header.type != ICMP_ER || ntohs(ping_packet.header.id) != id ||
+    if (ping_packet.header.type != ICMP_ER ||
+        ntohs(ping_packet.header.id) != id ||
         ntohs(ping_packet.header.seqno) != sequence) {
       return OtherPacket{};
     }
