@@ -279,24 +279,19 @@ class Ping {
   listen_ping() {
     assert(sock);
 
-    sockaddr_in addr;
-    socklen_t addr_len = sizeof(addr);
     using packet_payload_type = ping_req_packet;
     ip_packet<sizeof(packet_payload_type)> packet;
 
-    ssize_t received =
-        sock->recvfrom(&packet, sizeof(packet),
-                       reinterpret_cast<sockaddr *>(&addr), &addr_len);
+    ssize_t received = sock->read(&packet, sizeof(packet));
+    const auto packet_source_addr = packet.raw_packet.header.src.addr;
+    if (remote_address != packet_source_addr) {
+      return BadSourceAddress{};
+    }
     if (received < 0) {
       if (errno == EWOULDBLOCK || errno == EAGAIN) {
         return Waiting{};
       }
       return Errno{errno};
-      if (addr_len != sizeof(addr)) {
-        return {
-            Fatal{"Got bad address size form recvfrom, maybe the socket was "
-                  "not configured for ipv4?"}};
-      }
     }
     // Get the IP header length, fail if the header length
     // doesn't make sense (larger or smaller than allowed)
@@ -311,9 +306,6 @@ class Ping {
     // Not sure if the api does this for us
     if (inet_chksum(&packet.raw_packet, header_length) != 0) {
       return BadPacket{};
-    }
-    if (addr.sin_addr.s_addr != remote_address) {
-      return BadSourceAddress{};
     }
     // Do an early checksum check so that we avoid the memcopy in bit_cast_to
     // in case the packet is corrupted
