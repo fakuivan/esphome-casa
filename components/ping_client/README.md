@@ -46,3 +46,9 @@ As for the platform `IMPLEMENTATION_LWIP_TCP`, both the [udp](https://github.com
 use the "WiFiUdp" library. I'm not sure if that supports RAW sockets, I doubt it. The only
 platforms that have this issue however are the `esp8266` and `rp2040`, all the libretiny
 chips support sockets.
+
+Update. Turns out that `read` does give you the whole packet, [apparently it works the
+same as `recv` but without being able to pass flags](https://stackoverflow.com/a/1790775).
+While we were using `recvfrom` instead of `recv`, making the switch isn't complicated,
+we just parse the address from the IP header. Now the only issues will be the platforms using
+`IMPLEMENTATION_LWIP_TCP`.
