@@ -30,13 +30,36 @@ uint16_t random_id() {
 template <typename Header, size_t PayloadSize>
 struct packet {
   Header header;
-  std::array<uint8_t, PayloadSize> payload;
+  std::array<unsigned char, PayloadSize> payload;
 };
 #pragma pack(pop)
 
 using ping_req_packet = packet<icmp_echo_hdr, 4>;
+
 template <size_t PayloadSize>
-using ip_packet = packet<ip_hdr, PayloadSize>;
+struct ip_packet {
+  static constexpr auto payload_size = PayloadSize;
+  using header_size_type = uint8_t;
+  // max size for the rarely used `options` field at the end of the header
+  static constexpr header_size_type header_max_extra_length = 40;
+  using header_type = ip_hdr;
+  static constexpr size_t header_min_length = sizeof(ip_hdr);
+
+  packet<header_type, PayloadSize + header_max_extra_length> raw_packet;
+
+  etl::optional<header_size_type> get_header_length() {
+    const auto ip_header_length = IPH_HL_BYTES(&raw_packet.header);
+    // Sanity checks since the header length is required for the checksum
+    // calculation
+    if (ip_header_length < header_min_length) {
+      return {};
+    }
+    if (ip_header_length - header_min_length > header_max_extra_length) {
+      return {};
+    }
+    return {ip_header_length};
+  }
+};
 
 void init_ping_packet(ping_req_packet &packet, uint16_t sequence_number,
                       uint16_t id) {
@@ -72,15 +95,6 @@ bool bit_cast_to(const From &from, To &to, size_t begin) {
   memcpy(&to, reinterpret_cast<const unsigned char *>(&from) + begin,
          sizeof(To));
   return true;
-}
-
-template <typename NextHeader>
-NextHeader get_ip_packet_next_header(ip_packet<sizeof(NextHeader)> &packet) {
-  const auto ip_header_length = IPH_HL_BYTES(&packet.header);
-  assert(ip_header_length <= sizeof(packet.header));
-  NextHeader header;
-  assert(bit_cast_to(packet, header, ip_header_length));
-  return header;
 }
 
 struct BadSourceAddress {};
@@ -169,7 +183,7 @@ recvfrom_truncated_return recvfrom_truncated(AddrComparator &&same_addr,
   }
   assert(received == peek_size);
 
-  uint16_t packet_length_from_header = ntohs(IPH_LEN(&packet.header));
+  uint16_t packet_length_from_header = ntohs(IPH_LEN(&packet.raw_packet.header));
   assert(packet_length_from_header >= received);
 
   auto discard_error = recvfrom_discard(sock, std::move(same_addr), addr,
@@ -268,7 +282,8 @@ class Ping {
     sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
     ssize_t packet_len;
-    ip_packet<sizeof(icmp_echo_hdr)> packet;
+    using packet_payload_type = ping_req_packet;
+    ip_packet<sizeof(packet_payload_type)> packet;
     // will it all be recieved in one single call?
 
     auto read_result = recvfrom_truncated(
@@ -295,23 +310,48 @@ class Ping {
       }
       assert(false);
     }
-    if (IPH_OFFSET_BYTES(&packet.header) != 0 ||
-        (IPH_OFFSET(&packet.header) & IP_MF)) {
-      return Fatal{"Cannot handle fragmented packets"};
-    }
+    // Early response sanity check
     packet_len = read_result.value();
+    if (packet_len > sizeof(packet.raw_packet)) {
+      return BadPacket{};
+    }
+    // Get the IP header length, fail if the header length
+    // doesn't make sense (larger or smaller than allowed)
+    const auto maybe_header_length = packet.get_header_length();
+    if (!maybe_header_length) {
+      return BadPacket{};
+    }
+    // Now that we have the header length we can filter more precisely
+    const auto &header_length = *maybe_header_length;
+    if (packet_len != header_length + sizeof(packet_payload_type)) {
+      return BadPacket{};
+    }
+    // Not sure if the api does this for us
+    if (inet_chksum(&packet.raw_packet, header_length) != 0) {
+      return BadPacket{};
+    }
     if (addr.sin_addr.s_addr != remote_address) {
       return BadSourceAddress{};
     }
-    if (packet_len != sizeof(packet)) {
+    // Do an early checksum check so that we avoid the memcopy in bit_cast_to
+    // in case the packet is corrupted
+    if (inet_chksum(reinterpret_cast<unsigned char *>(&packet.raw_packet) +
+                        header_length,
+                    sizeof(packet_payload_type)) != 0) {
       return BadPacket{};
     }
+    packet_payload_type ping_packet;
+    assert(bit_cast_to(packet.raw_packet, ping_packet, header_length));
     // is checking packet type in ip header for icmp required?
-    auto echo_header = get_ip_packet_next_header<icmp_echo_hdr>(packet);
-    if (echo_header.type != ICMP_ER || ntohs(echo_header.id) != id ||
-        ntohs(echo_header.seqno) != sequence) {
+    if (ping_packet.header.type != ICMP_ER || ntohs(ping_packet.header.id) != id ||
+        ntohs(ping_packet.header.seqno) != sequence) {
       return OtherPacket{};
     }
+    if (IPH_OFFSET_BYTES(&packet.raw_packet.header) != 0 ||
+        (IPH_OFFSET(&packet.raw_packet.header) & IP_MF)) {
+      return Fatal{"Cannot handle fragmented packets"};
+    }
+    // TODO: check the contents of the ping payload
     return Reply{};
   }
 
