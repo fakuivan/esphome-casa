@@ -10,7 +10,18 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret baw_smart_relay_pw_1_params
       ap_ssid: Baw-Smart-Relay-Pw-1
-  more_debug_lt: !include includes/more_debug_libretiny.yaml
+  device: !include
+    file: includes/devices/desmaled_smart_relay_pw/default.yaml
+    vars:
+      power_calibration: "-1"
+      # multimeter: 0.9 A
+      # this device: 0.93 A
+      # 251213.46469622 * (0.93/0.9)
+      current_reference: 259587.2468527607
+      # multimeter: 209.7 V
+      # this device: 211 V
+      # 15873.35944299 * (211/209.7)
+      voltage_reference: 15971.763674157797
 
 bk72xx:
   board: cb2s

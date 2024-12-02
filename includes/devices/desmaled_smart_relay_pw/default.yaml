@@ -19,6 +19,16 @@ substitutions:
   id_status_light: light_status
   id_button: button_1
 
+  default_voltage_reference: "15873.35944299"
+  default_current_reference: "251213.46469622"
+
+  #voltage_calibration: "1"
+  #current_calibration: "1"
+  power_calibration: "1"
+
+  voltage_reference: $default_voltage_reference
+  current_reference: $default_current_reference
+
 binary_sensor:
 - platform: gpio
   id: $id_button
@@ -66,8 +76,12 @@ sensor:
     name: Voltage
   power:
     name: Power
+    filters:
+      multiply: $power_calibration
   energy:
     name: Energy
   frequency:
     name: Frequency
     accuracy_decimals: 2
+  voltage_reference: $voltage_reference
+  current_reference: $current_reference
