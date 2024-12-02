@@ -97,23 +97,6 @@ bool bit_cast_to(const From &from, To &to, size_t begin) {
   return true;
 }
 
-struct BadSourceAddress {};
-
-struct Errno {
-  int code;
-};
-
-// Like a more debuggable assert, it won't completely crash the microcontroller,
-// but it should at least disable the esphome component or cause the socket
-// to be restarted.
-//
-// if assert is like "I'm stating this will hold otherwise everything goes to
-// shit" Fatal is more like "I'm hoping to god this doesn't happen otherwise the
-// library guys are insane"
-struct Fatal {
-  std::string reason;
-};
-
 template <typename T>
 ssize_t sendto_ipv4(socket::Socket &sock, const T &obj, int flags,
                     const sockaddr_in &addr) {
@@ -124,13 +107,26 @@ ssize_t sendto_ipv4(socket::Socket &sock, const T &obj, int flags,
       sizeof(addr));
 }
 
+struct Errno {
+  int code;
+};
+
 struct Timeout {};
 
 struct Waiting {};
 
-struct BadPacket {};
+enum class IgnoredPacket {
+  NOT_FROM_SOURCE_ADDRESS,
+  INVALID_IP_HEADER_LENGTH,
+  MISMATCHED_LENGTH,
+  BAD_IP_HEADER_CHECKSUM,
+  BAD_ICMP_PACKET_CHECKSUM,
+  NOT_ECHO_REPLY,
+  MISMATCHED_ID,
+  MISMATCHED_SEQUENCE_NUMBER,
+  FRAGMENTED_PACKET
+};
 
-struct OtherPacket {};
 
 struct Reply {};
 
@@ -175,9 +171,7 @@ class Ping {
     return {};
   }
 
-  etl::variant<Waiting, BadPacket, Errno, BadSourceAddress, Fatal, Reply,
-               OtherPacket>
-  listen_ping() {
+  etl::variant<Waiting, Errno, IgnoredPacket, Reply> listen_ping() {
     assert(sock);
 
     using packet_payload_type = ping_req_packet;
@@ -186,7 +180,7 @@ class Ping {
     ssize_t received = sock->read(&packet, sizeof(packet));
     const auto packet_source_addr = packet.raw_packet.header.src.addr;
     if (remote_address != packet_source_addr) {
-      return BadSourceAddress{};
+      return IgnoredPacket::NOT_FROM_SOURCE_ADDRESS;
     }
     if (received < 0) {
       if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -198,34 +192,38 @@ class Ping {
     // doesn't make sense (larger or smaller than allowed)
     const auto maybe_header_length = packet.get_header_length();
     if (!maybe_header_length) {
-      return BadPacket{};
+      return IgnoredPacket::INVALID_IP_HEADER_LENGTH;
     }
     const auto &header_length = *maybe_header_length;
     if (received != header_length + sizeof(packet_payload_type)) {
-      return BadPacket{};
+      return IgnoredPacket::MISMATCHED_LENGTH;
     }
     // Not sure if the api does this for us
     if (inet_chksum(&packet.raw_packet, header_length) != 0) {
-      return BadPacket{};
+      return IgnoredPacket::BAD_IP_HEADER_CHECKSUM;
     }
     // Do an early checksum check so that we avoid the memcopy in bit_cast_to
     // in case the packet is corrupted
     if (inet_chksum(reinterpret_cast<unsigned char *>(&packet.raw_packet) +
                         header_length,
                     sizeof(packet_payload_type)) != 0) {
-      return BadPacket{};
+      return IgnoredPacket::BAD_ICMP_PACKET_CHECKSUM;
     }
     packet_payload_type ping_packet;
     assert(bit_cast_to(packet.raw_packet, ping_packet, header_length));
     // is checking packet type in ip header for icmp required?
-    if (ping_packet.header.type != ICMP_ER ||
-        ntohs(ping_packet.header.id) != id ||
-        ntohs(ping_packet.header.seqno) != sequence) {
-      return OtherPacket{};
+    if (ping_packet.header.type != ICMP_ER) {
+      return IgnoredPacket::NOT_ECHO_REPLY;
+    }
+    if (ntohs(ping_packet.header.id) != id) {
+      return IgnoredPacket::MISMATCHED_ID;
+    }
+    if (ntohs(ping_packet.header.seqno) != sequence) {
+      return IgnoredPacket::MISMATCHED_SEQUENCE_NUMBER;
     }
     if (IPH_OFFSET_BYTES(&packet.raw_packet.header) != 0 ||
         (IPH_OFFSET(&packet.raw_packet.header) & IP_MF)) {
-      return Fatal{"Cannot handle fragmented packets"};
+      return IgnoredPacket::FRAGMENTED_PACKET;
     }
     // TODO: check the contents of the ping payload
     return Reply{};
@@ -234,8 +232,10 @@ class Ping {
   friend etl::optional<Ping> make_ping(uint timeout, in_addr_t remote_address);
 
  public:
-  etl::variant<PingReply, Timeout, Waiting, Errno, Fatal> ping(
-      unsigned long now_milliseconds) {
+  template <typename OnPacketIgnored>
+  etl::variant<PingReply, Timeout, Waiting, Errno> ping(
+      unsigned long now_milliseconds,
+      OnPacketIgnored &&on_packet_ignored) {
     if (!waiting) {
       last_send_time = now_milliseconds;
       auto result = send_ping();
@@ -260,13 +260,9 @@ class Ping {
         waiting = false;
         return PingReply{now_milliseconds - last_send_time};
       }
-      if (etl::holds_alternative<BadPacket>(ping_result) ||
-          etl::holds_alternative<OtherPacket>(ping_result) ||
-          etl::holds_alternative<BadSourceAddress>(ping_result)) {
+      if (auto ignored_reason = etl::get_if<IgnoredPacket>(&ping_result)) {
+        on_packet_ignored(*ignored_reason);
         continue;
-      }
-      if (auto fatal = etl::get_if<Fatal>(&ping_result)) {
-        return {std::move(*fatal)};
       }
       if (auto errno_ = etl::get_if<Errno>(&ping_result)) {
         return {std::move(*errno_)};
@@ -274,6 +270,11 @@ class Ping {
       assert(false);
     }
     return Waiting{};
+  }
+
+  etl::variant<PingReply, Timeout, Waiting, Errno> ping(
+      unsigned long now_milliseconds) {
+    return ping(now_milliseconds, [](IgnoredPacket reason) -> void {});
   }
 };
 

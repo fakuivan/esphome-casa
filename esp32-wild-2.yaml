@@ -59,15 +59,8 @@ interval:
         );
         return;
       }
-      auto errno_ = etl::get_if<ping_client::Errno>(&ping_result);
-      auto fatal = etl::get_if<ping_client::Fatal>(&ping_result);
-      if (fatal) {
-        ESP_LOGE("main::ping_interval", "Got fatal error: %s", fatal->reason.c_str());
-      }
-      if (errno_) {
+      if (auto errno_ = etl::get_if<ping_client::Errno>(&ping_result)) {
         ESP_LOGE("main::ping_interval", "Got errno error: %s", strerror(errno_->code));
-      }
-      if (errno_ || fatal) {
         ESP_LOGE("main::ping_interval", "Resetting ping component");
         id(ping_to_bulb) = {};
         return;
