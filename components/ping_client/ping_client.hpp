@@ -103,45 +103,6 @@ struct Errno {
   int code;
 };
 
-struct BufferEnd {};
-
-struct DiscardError {
-  size_t discarded;
-  etl::variant<Errno, BufferEnd, BadSourceAddress> error;
-};
-
-template <typename Addr, typename AddrComparator>
-etl::optional<DiscardError> recvfrom_discard(socket::Socket &sock,
-                                             AddrComparator &&same_addr,
-                                             const Addr &addr,
-                                             size_t bytes_to_discard,
-                                             size_t discard_buffer_size) {
-  char discard_buffer[discard_buffer_size];
-  ssize_t received;
-  size_t total_received = 0;
-  for (size_t bytes_left = bytes_to_discard; bytes_left > 0;
-       bytes_left -= received) {
-    Addr next_addr;
-    socklen_t next_addr_size = sizeof(next_addr);
-    size_t bytes_expected = std::min(sizeof(discard_buffer), bytes_left);
-    received = sock.recvfrom(
-        reinterpret_cast<void *>(discard_buffer), bytes_expected,
-        reinterpret_cast<sockaddr *>(&next_addr), &next_addr_size);
-    if (received < 0) {
-      return {{total_received, Errno{errno}}};
-    }
-    total_received += received;
-    if (next_addr_size != sizeof(next_addr) || !same_addr(addr, next_addr)) {
-      return {{total_received, BadSourceAddress{}}};
-    }
-    if (received != bytes_expected) {
-      // return ShortPacketWhatever
-      return {{total_received, BufferEnd{}}};
-    }
-  }
-  return {};
-}
-
 // Like a more debuggable assert, it won't completely crash the microcontroller,
 // but it should at least disable the esphome component or cause the socket
 // to be restarted.
@@ -152,66 +113,6 @@ etl::optional<DiscardError> recvfrom_discard(socket::Socket &sock,
 struct Fatal {
   std::string reason;
 };
-
-using recvfrom_truncated_return =
-    etl::expected<size_t, etl::variant<Fatal, Errno, BadSourceAddress>>;
-
-// Reads the first bytes of an ipv4 packet and dumps the rest, next call to
-// recvfrom should start with a new packet. returns the total size of the
-// packet. Does not distinguish between fragmented and non-fragmented packets
-template <size_t PayloadSize, typename Addr, typename AddrComparator>
-recvfrom_truncated_return recvfrom_truncated(AddrComparator &&same_addr,
-                                             socket::Socket &sock,
-                                             ip_packet<PayloadSize> &packet,
-                                             Addr &addr,
-                                             size_t discard_buffer_size = 512) {
-  using unexpected = recvfrom_truncated_return::unexpected_type;
-  constexpr auto peek_size = sizeof(packet);
-  auto addr_size = sizeof(addr);
-  ssize_t received =
-      sock.recvfrom(reinterpret_cast<void *>(&packet), peek_size,
-                    reinterpret_cast<sockaddr *>(&addr), &addr_size);
-
-  if (received < 0) {
-    return unexpected{Errno{errno}};
-  }
-  if (addr_size != sizeof(addr)) {
-    return unexpected{BadSourceAddress{}};
-  }
-  if (received < peek_size) {
-    return received;
-  }
-  assert(received == peek_size);
-
-  uint16_t packet_length_from_header = ntohs(IPH_LEN(&packet.raw_packet.header));
-  assert(packet_length_from_header >= received);
-
-  auto discard_error = recvfrom_discard(sock, std::move(same_addr), addr,
-                                        packet_length_from_header - received,
-                                        discard_buffer_size);
-
-  if (!discard_error) {
-    return packet_length_from_header;
-  }
-
-  DiscardError &error = *discard_error;
-  if (auto errno_err = etl::get_if<Errno>(&error.error)) {
-    // TODO: Is this a possible case?
-    if (errno_err->code == EWOULDBLOCK || errno_err->code == EAGAIN) {
-      return unexpected{
-          Fatal{"Expected entire packet to be available in one go"}};
-    }
-    return unexpected{std::move(*errno_err)};
-  }
-  if (etl::holds_alternative<BufferEnd>(error.error)) {
-    return unexpected{Fatal{"Expected more bytes for packet"}};
-  }
-  if (etl::holds_alternative<BadSourceAddress>(error.error)) {
-    return unexpected{
-        Fatal{"Expected the rest of the packet to come from the same address"}};
-  }
-  assert(false);
-}
 
 template <typename T>
 ssize_t sendto_ipv4(socket::Socket &sock, const T &obj, int flags,
