@@ -26,7 +26,7 @@ packages:
 
 globals:
 - id: ping_to_bulb
-  type: std::shared_ptr<ping_client::Ping>
+  type: std::shared_ptr<ping_client::Ping<ping_client::DefaultMilliSecT>>
   initial_value: |-
     nullptr
 
@@ -50,7 +50,13 @@ interval:
           ping_client::make_ping(10000, network::IPAddress{192, 168, 122, 35})
         );
       }
-      auto ping_result = id(ping_to_bulb)->ping(millis());
+      auto ping_result = id(ping_to_bulb)->ping(millis(), [](ping_client::IgnoredPacket reason) {
+        ESP_LOGD(
+          "main::ping_interval",
+          "Packet ignored: %s",
+          ping_client::get_ignored_packet_reason(reason)
+        );
+      });
       if (auto reply = etl::get_if<ping_client::PingReply>(&ping_result)) {
         ESP_LOGD(
           "main::ping_interval",

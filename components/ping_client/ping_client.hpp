@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <type_traits>
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/socket/socket.h"
@@ -127,6 +128,30 @@ enum class IgnoredPacket {
   FRAGMENTED_PACKET
 };
 
+const char *get_ignored_packet_reason(const IgnoredPacket &packet) {
+  switch (packet) {
+    case IgnoredPacket::NOT_FROM_SOURCE_ADDRESS:
+      return "Packet not from source address";
+    case IgnoredPacket::INVALID_IP_HEADER_LENGTH:
+      return "Invalid IP header length";
+    case IgnoredPacket::MISMATCHED_LENGTH:
+      return "Packet length mismatch";
+    case IgnoredPacket::BAD_IP_HEADER_CHECKSUM:
+      return "Bad IP header checksum";
+    case IgnoredPacket::BAD_ICMP_PACKET_CHECKSUM:
+      return "Bad ICMP packet checksum";
+    case IgnoredPacket::NOT_ECHO_REPLY:
+      return "Not an echo reply packet";
+    case IgnoredPacket::MISMATCHED_ID:
+      return "Mismatched echo reply packet ID";
+    case IgnoredPacket::MISMATCHED_SEQUENCE_NUMBER:
+      return "Mismatched echo reply packet sequence number";
+    case IgnoredPacket::FRAGMENTED_PACKET:
+      return "Fragmented packet";
+    default:
+      assert(false);
+  }
+}
 
 struct Reply {};
 
@@ -134,15 +159,22 @@ struct PingReply {
   uint latency_ms;
 };
 
+using DefaultMilliSecT = decltype(esphome::millis());
+
+template <typename MilliSecT>
 class Ping {
  private:
   std::unique_ptr<socket::Socket> sock;
   uint16_t sequence = 0;
   uint16_t id;
   uint timeout;
-  unsigned long last_send_time;
+  MilliSecT last_send_time;
   in_addr_t remote_address;
   bool waiting = false;
+  static_assert(std::is_unsigned<MilliSecT>::value,
+                "Only unsigned types are allowed");
+  static_assert(std::is_integral<MilliSecT>::value,
+                "Only integer types are allowed");
 
   Ping(std::unique_ptr<socket::Socket> &&sock, uint timeout,
        in_addr_t remote_address)
@@ -229,13 +261,18 @@ class Ping {
     return Reply{};
   }
 
-  friend etl::optional<Ping> make_ping(uint timeout, in_addr_t remote_address);
+  template <typename T>
+  friend etl::optional<Ping<T>> make_ping(uint timeout,
+                                          in_addr_t remote_address);
 
  public:
-  template <typename OnPacketIgnored>
+  template <typename OnPacketIgnored, typename MilliSecT_>
   etl::variant<PingReply, Timeout, Waiting, Errno> ping(
-      unsigned long now_milliseconds,
-      OnPacketIgnored &&on_packet_ignored) {
+      MilliSecT_ now_milliseconds, OnPacketIgnored &&on_packet_ignored) {
+    static_assert(
+        std::is_same<MilliSecT_, MilliSecT>::value,
+        "Milliseconds type must exactly match the one provided while "
+        "constructing the class to have consistent clock overflow behaviour");
     if (!waiting) {
       last_send_time = now_milliseconds;
       auto result = send_ping();
@@ -245,7 +282,7 @@ class Ping {
       waiting = true;
       return {Waiting{}};
     }
-    if (now_milliseconds > (last_send_time + timeout)) {
+    if (MilliSecT{/*U0 + */ now_milliseconds - last_send_time} > timeout) {
       last_send_time = now_milliseconds;
       auto result = send_ping();
       if (result) {
@@ -272,26 +309,31 @@ class Ping {
     return Waiting{};
   }
 
+  template <typename MilliSecT_>
   etl::variant<PingReply, Timeout, Waiting, Errno> ping(
-      unsigned long now_milliseconds) {
+      MilliSecT_ now_milliseconds) {
     return ping(now_milliseconds, [](IgnoredPacket reason) -> void {});
   }
 };
 
-etl::optional<Ping> make_ping(uint timeout, in_addr_t remote_address) {
+template <typename MilliSecT = DefaultMilliSecT>
+etl::optional<Ping<MilliSecT>> make_ping(uint timeout,
+                                         in_addr_t remote_address) {
   auto sock = socket::socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
   if (!sock || set_socket_timeout(*sock, timeout) == -1 ||
       sock->setblocking(false) == -1) {
     return {};
   }
-  return Ping{std::move(sock), timeout, remote_address};
+  return Ping<MilliSecT>{std::move(sock), timeout, remote_address};
 }
 
-etl::optional<Ping> make_ping(uint timeout, network::IPAddress addr) {
+template <typename MilliSecT = DefaultMilliSecT>
+etl::optional<Ping<MilliSecT>> make_ping(uint timeout,
+                                         network::IPAddress addr) {
   if (!addr.is_ip4()) {
     return {};
   }
-  return make_ping(timeout, static_cast<ip4_addr>(addr).addr);
+  return make_ping<MilliSecT>(timeout, static_cast<ip4_addr>(addr).addr);
 }
 
 template <typename T>
