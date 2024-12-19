@@ -2,6 +2,11 @@ esphome:
   name: baw-smart-relay-pw-1
   friendly_name: baw_smart_relay_pw_1
 
+substitutions:
+  id_relay_inner: relay_inner
+  id_em: em_1
+  relay_internal: "True"
+
 packages:
   basic: !include
     file: includes/basic.yaml
@@ -22,6 +27,8 @@ packages:
       # this device: 211 V
       # 15873.35944299 * (211/209.7)
       voltage_reference: 15971.763674157797
+  em_relay: !include
+    file: includes/logic/energy_management/relay.yaml
 
 bk72xx:
   board: cb2s
