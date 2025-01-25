@@ -3,9 +3,6 @@ esphome:
   friendly_name: alic_smart_plug_3
 
 substitutions:
-  id_relay_inner: relay_inner
-  id_em: em_1
-  relay_internal: "True"
   pw_calibration_current_mult: "0.42996"
   pw_calibration_voltage_div: "775"
   pw_calibration_current_resistor: 0.001138 ohm
@@ -18,7 +15,5 @@ packages:
       # CHANGE THIS TO THE NAME OF THE DEVICE!!!
       <<: !secret alic_smart_plug_3_params
       ap_ssid: Alic-Smart-Plug-3
-  em_relay: !include
-    file: includes/logic/energy_management/relay.yaml
   device: !include
     file: includes/devices/alic_smart_plug/default.yaml
