@@ -1,0 +1,20 @@
+esphome:
+  name: baw-smart-relay-pw-3
+  friendly_name: baw_smart_relay_pw_3
+
+packages:
+  basic: !include
+    file: includes/basic.yaml
+    vars:
+      # secrets don't support substitution
+      # CHANGE THIS TO THE NAME OF THE DEVICE!!!
+      <<: !secret baw_smart_relay_pw_3_params
+      ap_ssid: Baw-Smart-Relay-Pw-3
+  device: !include
+    file: includes/devices/desmaled_smart_relay_pw/default.yaml
+    vars:
+      # TODO: calibration
+      power_calibration: "-1"
+
+bk72xx:
+  board: cb2s
